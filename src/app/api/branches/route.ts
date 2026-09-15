@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBranches, addBranch, updateBranch } from '@/lib/data-store';
+import { getBranches, addBranch, updateBranch, readableError } from '@/lib/data-store';
 
 export async function GET() {
   const branches = await getBranches();
@@ -18,7 +18,9 @@ export async function POST(req: NextRequest) {
     const newBranch = await addBranch(body);
     return NextResponse.json({ success: true, data: newBranch });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    const message = readableError(err, 'Cabang gagal disimpan');
+    const status = /duplicate|unique|sudah ada/i.test(message) ? 409 : 500;
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }
 
@@ -31,6 +33,6 @@ export async function PUT(req: NextRequest) {
     const updated = await updateBranch(id, updates);
     return NextResponse.json({ success: true, data: updated });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: readableError(err, 'Cabang gagal diperbarui') }, { status: 500 });
   }
 }

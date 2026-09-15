@@ -21,6 +21,8 @@ export default function BranchesPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     code: '',
@@ -50,6 +52,8 @@ export default function BranchesPage() {
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
+    setError(null);
     try {
       const res = await fetch('/api/branches', {
         method: 'POST',
@@ -63,10 +67,12 @@ export default function BranchesPage() {
         fetchBranches();
         setForm({ code: '', name: '', city: '', address: '', phone: '' });
       } else {
-        alert(`Gagal: ${data.error}`);
+        setError(typeof data.error === 'string' ? data.error : 'Cabang gagal disimpan. Periksa data lalu coba kembali.');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      setError(err?.message || 'Tidak dapat terhubung ke server. Silakan coba kembali.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -99,7 +105,7 @@ export default function BranchesPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => { setError(null); setShowAddModal(true); }}
           className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -214,6 +220,12 @@ export default function BranchesPage() {
             </div>
 
             <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
+              {error && (
+                <div role="alert" className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 leading-relaxed">
+                  <strong className="block mb-0.5">Cabang belum tersimpan</strong>
+                  {error}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Kode Cabang *</label>
@@ -289,9 +301,10 @@ export default function BranchesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md shadow-blue-600/20"
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-wait text-white rounded-xl font-semibold shadow-md shadow-blue-600/20"
                 >
-                  Simpan Cabang
+                  {saving ? 'Menyimpan...' : 'Simpan Cabang'}
                 </button>
               </div>
             </form>

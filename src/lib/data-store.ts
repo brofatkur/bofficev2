@@ -19,7 +19,16 @@ const keys: Record<string, string> = {
 const reverseKeys = Object.fromEntries(Object.entries(keys).map(([a,b]) => [b,a]));
 function fromRow<T>(row: Record<string, any>): T { return Object.fromEntries(Object.entries(row).map(([k,v]) => [keys[k] || k,v])) as T; }
 function toRow(value: Record<string, any>): Record<string, any> { return Object.fromEntries(Object.entries(value).filter(([,v]) => v !== undefined).map(([k,v]) => [reverseKeys[k] || k,v])); }
-function assertOk(error: any) { if (error) throw new Error(error.message || error.details || String(error)); }
+export function readableError(error: any, fallback = 'Terjadi kesalahan pada database') {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message;
+  if (typeof error.message === 'string') return error.message;
+  if (typeof error.details === 'string') return error.details;
+  if (typeof error.error === 'string') return error.error;
+  try { return JSON.stringify(error); } catch { return fallback; }
+}
+function assertOk(error: any) { if (error) throw new Error(readableError(error)); }
 function makeId(prefix: string) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`; }
 async function list<T>(table: string, branchId?: string): Promise<T[]> {
   let q: any = getInsforge().database.from(table).select().order('created_at',{ascending:false}).limit(MAX_ROWS);
@@ -32,7 +41,22 @@ async function updateOne<T>(table:string,id:string,value:Record<string,any>):Pro
 export function normalizePhone(phone:string){ let s=phone.replace(/[^0-9]/g,''); if(s.startsWith('62'))s=`0${s.slice(2)}`; return s; }
 export async function getBranches(){ return list<Branch>('branches'); }
 export async function getBranchByCode(code:string){ const {data,error}=await getInsforge().database.from('branches').select().eq('code',code.trim().toUpperCase()).maybeSingle(); assertOk(error); return data?fromRow<Branch>(data as any):null; }
-export async function addBranch(branch:Omit<Branch,'id'|'createdAt'>){ const code=branch.code.toUpperCase().trim(); const created=await insertOne<Branch>('branches',{...branch,id:makeId('br'),code,publicAttendanceUrl:`/attendance/${code}`}); await insertOne<MeetingRoom>('meeting_rooms',{id:`mr_${created.id}`,branchId:created.id,name:`Meeting Room ${created.name}`,capacity:10,facilities:['Smart Display TV','WiFi High Speed','Whiteboard','AC'],hourlyOverageRate:90000}); return created; }
+export async function addBranch(branch:Omit<Branch,'id'|'createdAt'>){
+  const code=branch.code.toUpperCase().trim();
+  const existing=await getBranchByCode(code);
+  const created=existing || await insertOne<Branch>('branches',{...branch,phone:normalizePhone(branch.phone||''),status:branch.status||'active',id:makeId('br'),code,publicAttendanceUrl:`/attendance/${code}`});
+  const {data:room,error:roomLookupError}=await getInsforge().database.from('meeting_rooms').select('id').eq('branch_id',created.id).maybeSingle();
+  assertOk(roomLookupError);
+  if(!room){
+    try {
+      await insertOne<MeetingRoom>('meeting_rooms',{id:`mr_${created.id}`,branchId:created.id,name:`Meeting Room ${created.name}`,capacity:10,facilities:['Smart Display TV','WiFi High Speed','Whiteboard','AC'],hourlyOverageRate:90000});
+    } catch(error){
+      if(!existing) await getInsforge().database.from('branches').delete().eq('id',created.id);
+      throw error;
+    }
+  }
+  return created;
+}
 export async function updateBranch(id:string,updates:Partial<Branch>){ return updateOne<Branch>('branches',id,updates); }
 
 export async function getCustomers(branchId?:string){ return list<Customer>('customers',branchId); }
@@ -76,12 +100,17 @@ async function getInvoiceChildren(ids:string[]){
 export async function getInvoices(branchId?:string):Promise<Invoice[]>{ const base=await list<any>('invoices',branchId),child=await getInvoiceChildren(base.map((x:any)=>x.id)); return base.map((invoice:any)=>({...invoice,items:child.items.filter(x=>x.invoice_id===invoice.id).map(fromRow<InvoiceItem>),totalTaxes:child.taxes.filter(x=>x.invoice_id===invoice.id).map(x=>({name:x.name,percent:Number(x.percent),amount:Number(x.amount)})),payments:child.payments.filter(x=>x.invoice_id===invoice.id).map(fromRow<InvoicePayment>)})); }
 export async function generateInvoiceNumber(code:string){ const prefix=`INV/${code.toUpperCase()}/${new Date().getFullYear()}/`; const {count,error}=await getInsforge().database.from('invoices').select('id',{count:'exact',head:true}).like('invoice_number',`${prefix}%`); assertOk(error); return `${prefix}${String((count||0)+1).padStart(3,'0')}`; }
 export async function generateReceiptNumber(code:string){ const prefix=`KWT/${code.toUpperCase()}/${new Date().getFullYear()}/`; const {count,error}=await getInsforge().database.from('invoice_payments').select('id',{count:'exact',head:true}).like('receipt_number',`${prefix}%`); assertOk(error); return `${prefix}${String((count||0)+1).padStart(3,'0')}`; }
-export async function addInvoice(value:{branchId:string;customerId:string;contractId?:string;issueDate:string;dueDate:string;items:InvoiceItem[];totalDiscountType?:'nominal'|'percentage';totalDiscountValue?:number;totalTaxes?:Array<{name:string;percent:number}>;autoNotification?:boolean}):Promise<Invoice>{
+export async function addInvoice(value:{invoiceNumber?:string;branchId:string;customerId:string;contractId?:string;issueDate:string;dueDate:string;items:InvoiceItem[];totalDiscountType?:'nominal'|'percentage';totalDiscountValue?:number;totalTaxes?:Array<{name:string;percent:number}>;autoNotification?:boolean}):Promise<Invoice>{
   const branch=(await getBranches()).find(x=>x.id===value.branchId); if(!branch)throw new Error('Cabang tidak ditemukan'); const calc=calculateInvoiceTotals(value.items,value.totalDiscountType,value.totalDiscountValue,value.totalTaxes),id=makeId('inv');
-  const invoice=await insertOne<any>('invoices',{id,invoiceNumber:await generateInvoiceNumber(branch.code),branchId:value.branchId,customerId:value.customerId,contractId:value.contractId,issueDate:value.issueDate,dueDate:value.dueDate,subtotal:calc.subtotal,totalDiscountType:value.totalDiscountType,totalDiscountValue:value.totalDiscountValue,totalDiscountAmount:calc.totalDiscountAmount,totalTaxAmount:calc.totalTaxAmount,totalAmount:calc.totalAmount,totalPaid:0,remainingAmount:calc.totalAmount,status:'belum_dibayar',autoNotification:value.autoNotification??true});
-  const items=value.items.map((item,position)=>({...item,id:item.id||makeId('item'),invoiceId:id,position,...calc.computedItems[position]})); const itemResult=await getInsforge().database.from('invoice_items').insert(items.map(toRow)).select(); assertOk(itemResult.error);
-  if(calc.computedTotalTaxes.length){const taxes=calc.computedTotalTaxes.map((tax,position)=>({invoice_id:id,position,...tax})); const taxResult=await getInsforge().database.from('invoice_total_taxes').insert(taxes).select();assertOk(taxResult.error);}
-  return {...invoice,items,totalTaxes:calc.computedTotalTaxes,payments:[]} as Invoice;
+  const invoice=await insertOne<any>('invoices',{id,invoiceNumber:value.invoiceNumber?.trim()||await generateInvoiceNumber(branch.code),branchId:value.branchId,customerId:value.customerId,contractId:value.contractId,issueDate:value.issueDate,dueDate:value.dueDate,subtotal:calc.subtotal,totalDiscountType:value.totalDiscountType,totalDiscountValue:value.totalDiscountValue,totalDiscountAmount:calc.totalDiscountAmount,totalTaxAmount:calc.totalTaxAmount,totalAmount:calc.totalAmount,totalPaid:0,remainingAmount:calc.totalAmount,status:'belum_dibayar',autoNotification:value.autoNotification??true});
+  try {
+    const items=value.items.map((item,position)=>({...item,id:item.id||makeId('item'),invoiceId:id,position,...calc.computedItems[position]})); const itemResult=await getInsforge().database.from('invoice_items').insert(items.map(toRow)).select(); assertOk(itemResult.error);
+    if(calc.computedTotalTaxes.length){const taxes=calc.computedTotalTaxes.map((tax,position)=>({invoice_id:id,position,...tax})); const taxResult=await getInsforge().database.from('invoice_total_taxes').insert(taxes).select();assertOk(taxResult.error);}
+    return {...invoice,items,totalTaxes:calc.computedTotalTaxes,payments:[]} as Invoice;
+  } catch(error) {
+    await getInsforge().database.from('invoices').delete().eq('id',id);
+    throw error;
+  }
 }
 export async function recordInvoicePayment(value:{invoiceId:string;amount:number;paymentDate:string;paymentMethod:string;notes?:string;recordedBy?:string}):Promise<{success:boolean;payment?:InvoicePayment;invoice?:Invoice;error?:string}>{
   const invoice=(await getInvoices()).find(x=>x.id===value.invoiceId); if(!invoice)return {success:false,error:'Invoice tidak ditemukan'}; const branch=(await getBranches()).find(x=>x.id===invoice.branchId); if(!branch)return {success:false,error:'Cabang invoice tidak ditemukan'};

@@ -17,8 +17,12 @@ import {
   Check,
   Receipt,
   Download,
+  UploadCloud,
+  FileSpreadsheet,
+  Loader2,
 } from 'lucide-react';
 import { terbilang } from '@/lib/terbilang';
+import { csvEscape, parseCsv, type CsvRow } from '@/lib/csv';
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -36,6 +40,12 @@ export default function InvoicesPage() {
   const [previewReceipt, setPreviewReceipt] = useState<{ payment: any; invoice: any } | null>(null);
   const [paymentModalInvoice, setPaymentModalInvoice] = useState<any | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importRows, setImportRows] = useState<CsvRow[]>([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any | null>(null);
 
   // Payment Form
   const [paymentForm, setPaymentForm] = useState({
@@ -74,6 +84,60 @@ export default function InvoicesPage() {
 
   const [sendingWaId, setSendingWaId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const downloadImportTemplate = () => {
+    const headers = ['invoice_number','branch_code','customer_company','customer_pic','customer_phone','customer_email','customer_address','entity_type','service_type','contract_number','issue_date','due_date','description','item_type','quantity','amount','discount_type','discount_value','tax_name','tax_percent','total_discount_type','total_discount_value','total_tax_name','total_tax_percent','total_paid','payment_date','payment_method','auto_notification'];
+    const example = ['INV/DPS-DIP/2026/001','DPS-DIP','PT Contoh Tenant','Made Contoh','081234567890','finance@contoh.id','Denpasar','PT','virtual_office','','2026-09-01','2026-09-15','Sewa Virtual Office September','jasa','1','6000000','nominal','0','PPN','11','nominal','0','','0','0','','','false'];
+    const content = [headers, example].map((row) => row.map(csvEscape).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'template-import-invoice-boffice.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = async (file?: File) => {
+    setImportRows([]);
+    setImportResult(null);
+    setImportError(null);
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setImportError('Gunakan file CSV. Unduh template agar urutan kolom sesuai.');
+      return;
+    }
+    try {
+      const rows = parseCsv(await file.text());
+      setImportRows(rows);
+      setImportFileName(file.name);
+    } catch (error: any) {
+      setImportError(error?.message || 'File CSV tidak dapat dibaca.');
+    }
+  };
+
+  const handleImportInvoices = async () => {
+    if (!importRows.length) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const response = await fetch('/api/invoices/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: importRows }),
+      });
+      const result = await response.json();
+      setImportResult(result.data || null);
+      if (!response.ok && !result.data) setImportError(typeof result.error === 'string' ? result.error : 'Impor invoice gagal.');
+      if (result.data?.imported > 0) {
+        setNotice(`${result.data.imported} invoice berhasil diimpor dari ${importFileName}.`);
+        await fetchData();
+      }
+    } catch (error: any) {
+      setImportError(error?.message || 'Tidak dapat menghubungi server.');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -271,13 +335,22 @@ export default function InvoicesPage() {
             Penerbitan faktur tagihan dengan diskon & pajak fleksibel per item/total, pembayaran bertahap, dan penerbitan kuitansi PDF resmi.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Terbitkan Invoice Baru</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowImportModal(true); setImportError(null); setImportResult(null); }}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-2"
+          >
+            <UploadCloud className="w-4 h-4 text-blue-600" />
+            <span>Import Invoice</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Terbitkan Invoice Baru</span>
+          </button>
+        </div>
       </div>
 
       {notice && (
@@ -820,6 +893,92 @@ export default function InvoicesPage() {
               >
                 Tutup
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK INVOICE MIGRATION */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Migrasi Invoice Massal</h3>
+                  <p className="text-[11px] text-slate-500">Unggah CSV, periksa data, lalu impor ke database BOffice.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 text-xs">
+              <div className="grid grid-cols-3 gap-2">
+                {['1. Siapkan CSV', '2. Validasi data', '3. Import database'].map((step, index) => (
+                  <div key={step} className={`rounded-xl border px-3 py-2 font-semibold ${index === 0 || importRows.length || importResult ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                    {step}
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-dashed border-blue-300 bg-blue-50/50 p-6 text-center">
+                <UploadCloud className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+                <p className="font-bold text-slate-800">Pilih file CSV dari sistem lama</p>
+                <p className="text-[11px] text-slate-500 mt-1">Maksimal 2.000 baris. Baris dengan nomor invoice sama akan digabung menjadi beberapa item.</p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <label className="cursor-pointer px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">
+                    Pilih CSV
+                    <input type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => handleImportFile(event.target.files?.[0])} />
+                  </label>
+                  <button type="button" onClick={downloadImportTemplate} className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold inline-flex items-center gap-1.5">
+                    <Download className="w-3.5 h-3.5" /> Unduh Template
+                  </button>
+                </div>
+              </div>
+
+              {importError && <div role="alert" className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700"><strong className="block mb-0.5">File belum dapat diproses</strong>{importError}</div>}
+
+              {importRows.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div><strong className="text-slate-800">{importFileName}</strong><span className="text-slate-500"> · {importRows.length} baris · {new Set(importRows.map((row) => row.invoice_number)).size} invoice</span></div>
+                    <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 font-semibold">CSV terbaca</span>
+                  </div>
+                  <div className="border border-slate-200 rounded-xl overflow-x-auto">
+                    <table className="min-w-full text-[11px]">
+                      <thead className="bg-slate-50 text-slate-500"><tr>{['Baris','Invoice','Cabang','Tenant','Tanggal','Deskripsi','Nilai'].map((label) => <th key={label} className="px-3 py-2 text-left font-semibold">{label}</th>)}</tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {importRows.slice(0, 6).map((row, index) => <tr key={index}><td className="px-3 py-2 text-slate-400">{index + 2}</td><td className="px-3 py-2 font-mono font-semibold whitespace-nowrap">{row.invoice_number || '—'}</td><td className="px-3 py-2 whitespace-nowrap">{row.branch_code || '—'}</td><td className="px-3 py-2 whitespace-nowrap">{row.customer_company || '—'}</td><td className="px-3 py-2 whitespace-nowrap">{row.issue_date || '—'}</td><td className="px-3 py-2 min-w-44">{row.description || '—'}</td><td className="px-3 py-2 text-right whitespace-nowrap">Rp {Number(row.amount || 0).toLocaleString('id-ID')}</td></tr>)}
+                      </tbody>
+                    </table>
+                  </div>
+                  {importRows.length > 6 && <p className="text-[10px] text-slate-400">Pratinjau 6 dari {importRows.length} baris.</p>}
+                </div>
+              )}
+
+              {importResult && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div><div className="text-lg font-black text-emerald-700">{importResult.imported}</div><div className="text-[10px] text-slate-500">Berhasil</div></div>
+                    <div><div className="text-lg font-black text-amber-600">{importResult.skipped}</div><div className="text-[10px] text-slate-500">Duplikat dilewati</div></div>
+                    <div><div className="text-lg font-black text-rose-600">{importResult.failed}</div><div className="text-[10px] text-slate-500">Gagal</div></div>
+                  </div>
+                  {importResult.errors?.length > 0 && <div className="max-h-32 overflow-y-auto space-y-1">{importResult.errors.map((item: any, index: number) => <div key={index} className="text-rose-700 bg-white border border-rose-100 rounded-lg px-3 py-2">Baris {item.row} · {item.invoiceNumber}: {item.message}</div>)}</div>}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setShowImportModal(false)} className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-600 hover:bg-slate-50">Tutup</button>
+                <button type="button" disabled={!importRows.length || importing} onClick={handleImportInvoices} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold inline-flex items-center gap-2">
+                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                  {importing ? 'Mengimpor...' : 'Import ke Database'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
