@@ -1,0 +1,351 @@
+{
+  "settings": {
+    "kirimdevApiKey": "kdv_live_sample_key_123",
+    "kirimdevPhoneNumberId": "106540352242922",
+    "companyName": "Nusantara Office Center",
+    "companyAddress": "Gedung Menara Nusantara Lt. 12, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan",
+    "companyPhone": "+628119876543",
+    "bankAccountInfo": "BCA 8800-1234-5678 a.n. PT Nusantara Office Center",
+    "meetingRoomMonthlyFreeHours": 8,
+    "meetingRoomOverageRatePerHour": 90000
+  },
+  "leads": [
+    {
+      "id": "lead_1",
+      "name": "Budi Santoso",
+      "companyName": "PT Digital Inovasi Bangsa",
+      "phone": "+6281234567890",
+      "email": "budi@digitalinovasi.id",
+      "interestType": "physical",
+      "billingCycle": "yearly",
+      "estimatedValue": 120000000,
+      "status": "closed_won",
+      "notes": "Tertarik sewa Private Office Room 301 untuk 6 orang.",
+      "createdAt": "2026-08-01T09:00:00.000Z",
+      "updatedAt": "2026-08-10T14:30:00.000Z"
+    },
+    {
+      "id": "lead_2",
+      "name": "Citra Dewi",
+      "companyName": "CV Maju Bersama",
+      "phone": "+6281987654321",
+      "email": "citra@majubersama.co.id",
+      "interestType": "virtual",
+      "billingCycle": "yearly",
+      "estimatedValue": 6000000,
+      "status": "closed_won",
+      "notes": "Membutuhkan Virtual Office + Domisili Perusahaan Jakarta.",
+      "createdAt": "2026-08-05T10:00:00.000Z",
+      "updatedAt": "2026-08-15T11:00:00.000Z"
+    },
+    {
+      "id": "lead_3",
+      "name": "Eko Prasetyo",
+      "companyName": "StartUp Tech Labs",
+      "phone": "+6285712345678",
+      "email": "eko@startuptech.io",
+      "interestType": "physical",
+      "billingCycle": "monthly",
+      "estimatedValue": 8500000,
+      "status": "negotiation",
+      "notes": "Sedang nego diskon sewa bulanan ruang 204.",
+      "createdAt": "2026-08-20T13:00:00.000Z",
+      "updatedAt": "2026-08-28T09:00:00.000Z"
+    },
+    {
+      "id": "lead_4",
+      "name": "Fiona Rahma",
+      "companyName": "Fiona Creative Agency",
+      "phone": "+6281345678901",
+      "email": "hello@fionacreative.com",
+      "interestType": "virtual",
+      "billingCycle": "yearly",
+      "estimatedValue": 6000000,
+      "status": "contacted",
+      "notes": "Telah dikirimkan proposal Virtual Office Platinum.",
+      "createdAt": "2026-08-25T15:00:00.000Z",
+      "updatedAt": "2026-08-26T10:00:00.000Z"
+    },
+    {
+      "id": "lead_5",
+      "name": "Gita Permata",
+      "companyName": "Logistik Cepat Mandiri",
+      "phone": "+6287890123456",
+      "email": "gita@logistikcepat.com",
+      "interestType": "physical",
+      "billingCycle": "monthly",
+      "estimatedValue": 15000000,
+      "status": "prospect",
+      "notes": "Inquiry awal via WhatsApp.",
+      "createdAt": "2026-08-30T11:00:00.000Z",
+      "updatedAt": "2026-08-30T11:00:00.000Z"
+    }
+  ],
+  "offices": [
+    {
+      "id": "off_101",
+      "code": "OFC-101",
+      "name": "Private Suite Executive 101",
+      "type": "physical",
+      "capacity": 8,
+      "facilities": [
+        "AC Dedicated",
+        "High Speed Fiber WiFi",
+        "Ergonomic Desk & Chair",
+        "Access 24/7",
+        "Free Cleaning"
+      ],
+      "monthlyPrice": 15000000,
+      "yearlyPrice": 160000000,
+      "status": "rented",
+      "currentTenantId": "cus_1",
+      "description": "Ruang kantor privat suite modern dengan pemandangan kota."
+    },
+    {
+      "id": "off_102",
+      "code": "OFC-102",
+      "name": "Private Suite Room 102",
+      "type": "physical",
+      "capacity": 4,
+      "facilities": [
+        "AC",
+        "High Speed WiFi",
+        "Desk 4 Pax",
+        "Keycard Access"
+      ],
+      "monthlyPrice": 8500000,
+      "yearlyPrice": 90000000,
+      "status": "available",
+      "description": "Ruang kantor privat kompak cocok untuk tim startup."
+    },
+    {
+      "id": "off_103",
+      "code": "OFC-103",
+      "name": "Dedicated Desk Cluster 103",
+      "type": "physical",
+      "capacity": 2,
+      "facilities": [
+        "WiFi 100Mbps",
+        "Locker",
+        "Shared Lounge"
+      ],
+      "monthlyPrice": 4000000,
+      "yearlyPrice": 42000000,
+      "status": "available",
+      "description": "Meja kerja khusus di area co-working."
+    },
+    {
+      "id": "vo_gold",
+      "code": "VO-GOLD",
+      "name": "Virtual Office Gold Plan (Tahunan)",
+      "type": "virtual",
+      "facilities": [
+        "Alamat Bisnis / Domisili Perusahaan",
+        "Penanganan Surat & Paket",
+        "Layanan Resepsionis",
+        "Penggunaan Kuota Meeting Room 8 Jam/Bulan"
+      ],
+      "monthlyPrice": 0,
+      "yearlyPrice": 6000000,
+      "status": "rented",
+      "currentTenantId": "cus_2",
+      "description": "Paket virtual office terlengkap untuk legalitas dan alamat resmi."
+    },
+    {
+      "id": "vo_silver",
+      "code": "VO-SILVER",
+      "name": "Virtual Office Silver Plan (Tahunan)",
+      "type": "virtual",
+      "facilities": [
+        "Alamat Domisili Gedung",
+        "Mail Handling",
+        "8 Jam Meeting Room/Bulan"
+      ],
+      "monthlyPrice": 0,
+      "yearlyPrice": 4500000,
+      "status": "available",
+      "description": "Paket virtual office ekonomis."
+    }
+  ],
+  "customers": [
+    {
+      "id": "cus_1",
+      "companyName": "PT Digital Inovasi Bangsa",
+      "picName": "Budi Santoso",
+      "phone": "+6281234567890",
+      "email": "budi@digitalinovasi.id",
+      "address": "Gedung Menara Nusantara Lt. 12 Suite 101, Jakarta",
+      "npwp": "01.234.567.8-012.000",
+      "leadId": "lead_1",
+      "createdAt": "2026-08-10T14:30:00.000Z"
+    },
+    {
+      "id": "cus_2",
+      "companyName": "CV Maju Bersama",
+      "picName": "Citra Dewi",
+      "phone": "+6281987654321",
+      "email": "citra@majubersama.co.id",
+      "address": "Jl. Kemang Raya No. 45, Jakarta Selatan",
+      "npwp": "02.987.654.3-098.000",
+      "leadId": "lead_2",
+      "createdAt": "2026-08-15T11:00:00.000Z"
+    }
+  ],
+  "contracts": [
+    {
+      "id": "ctr_1",
+      "contractNumber": "CTR/NOC/2025/001",
+      "customerId": "cus_1",
+      "officeId": "off_101",
+      "rentalType": "physical",
+      "billingCycle": "yearly",
+      "startDate": "2025-10-01",
+      "endDate": "2026-09-30",
+      "rentPrice": 160000000,
+      "autoRenew": true,
+      "status": "expiring_soon",
+      "createdAt": "2025-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "ctr_2",
+      "contractNumber": "CTR/NOC/2025/002",
+      "customerId": "cus_2",
+      "officeId": "vo_gold",
+      "rentalType": "virtual",
+      "billingCycle": "yearly",
+      "startDate": "2025-09-15",
+      "endDate": "2026-09-15",
+      "rentPrice": 6000000,
+      "autoRenew": false,
+      "status": "expiring_soon",
+      "createdAt": "2025-09-15T00:00:00.000Z"
+    }
+  ],
+  "meetingRooms": [
+    {
+      "id": "mr_1",
+      "name": "Meeting Room Grand Merapi (12 Pax)",
+      "capacity": 12,
+      "facilities": [
+        "Smart TV 65 Inch",
+        "Video Conference Cam",
+        "Glass Whiteboard",
+        "AC",
+        "Coffee & Tea Service"
+      ],
+      "hourlyOverageRate": 90000
+    },
+    {
+      "id": "mr_2",
+      "name": "Meeting Room Executive Bromo (6 Pax)",
+      "capacity": 6,
+      "facilities": [
+        "Monitor Display 50 Inch",
+        "Whiteboard",
+        "High Speed WiFi"
+      ],
+      "hourlyOverageRate": 90000
+    }
+  ],
+  "bookings": [
+    {
+      "id": "book_1",
+      "roomId": "mr_1",
+      "customerId": "cus_1",
+      "title": "Monthly Strategy Review PT Digital Inovasi",
+      "date": "2026-09-01",
+      "startTime": "09:00",
+      "endTime": "13:00",
+      "durationHours": 4,
+      "isOverage": false,
+      "overageFee": 0,
+      "createdAt": "2026-08-30T10:00:00.000Z"
+    },
+    {
+      "id": "book_2",
+      "roomId": "mr_1",
+      "customerId": "cus_1",
+      "title": "Client Pitching & Product Demo",
+      "date": "2026-09-02",
+      "startTime": "13:00",
+      "endTime": "18:00",
+      "durationHours": 5,
+      "isOverage": true,
+      "overageFee": 90000,
+      "createdAt": "2026-09-01T08:00:00.000Z"
+    },
+    {
+      "id": "book_3",
+      "roomId": "mr_2",
+      "customerId": "cus_2",
+      "title": "Rapat Perencanaan CV Maju Bersama",
+      "date": "2026-09-02",
+      "startTime": "10:00",
+      "endTime": "13:00",
+      "durationHours": 3,
+      "isOverage": false,
+      "overageFee": 0,
+      "createdAt": "2026-09-01T15:00:00.000Z"
+    }
+  ],
+  "invoices": [
+    {
+      "id": "inv_1",
+      "invoiceNumber": "INV/NOC/2026/0901",
+      "customerId": "cus_1",
+      "contractId": "ctr_1",
+      "issueDate": "2026-09-01",
+      "dueDate": "2026-09-10",
+      "items": [
+        {
+          "description": "Perpanjangan Sewa Tahunan Private Suite 101 (2026/2027)",
+          "amount": 160000000,
+          "quantity": 1,
+          "total": 160000000
+        },
+        {
+          "description": "Kelebihan Pemakaian Meeting Room Sep 2026 (1 jam @ Rp 90.000)",
+          "amount": 90000,
+          "quantity": 1,
+          "total": 90000
+        }
+      ],
+      "subtotal": 160090000,
+      "tax": 0,
+      "totalAmount": 160090000,
+      "status": "pending",
+      "createdAt": "2026-09-01T09:00:00.000Z"
+    },
+    {
+      "id": "inv_2",
+      "invoiceNumber": "INV/NOC/2026/0902",
+      "customerId": "cus_2",
+      "contractId": "ctr_2",
+      "issueDate": "2026-09-01",
+      "dueDate": "2026-09-15",
+      "items": [
+        {
+          "description": "Perpanjangan Virtual Office Gold Plan (2026/2027)",
+          "amount": 6000000,
+          "quantity": 1,
+          "total": 6000000
+        }
+      ],
+      "subtotal": 6000000,
+      "tax": 0,
+      "totalAmount": 6000000,
+      "status": "pending",
+      "createdAt": "2026-09-01T10:00:00.000Z"
+    }
+  ],
+  "whatsappLogs": [
+    {
+      "id": "wa_seed_1",
+      "recipient": "+6281234567890",
+      "messageType": "contract_renewal",
+      "content": "Halo Budi Santoso (PT Digital Inovasi Bangsa),\nPengingat bahwa kontrak sewa Private Suite Executive 101 akan berakhir pada 30 September 2026. Mohon konfirmasi perpanjangan sewa Anda.",
+      "status": "sent",
+      "sentAt": "2026-09-01T09:30:00.000Z"
+    }
+  ]
+}
