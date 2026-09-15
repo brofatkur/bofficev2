@@ -5,7 +5,7 @@ import { sendWhatsAppMessage } from '@/lib/kirimdev';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const branchId = searchParams.get('branchId') || undefined;
-  const invoices = getInvoices(branchId);
+  const invoices = await getInvoices(branchId);
   return NextResponse.json({ success: true, data: invoices });
 }
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newInvoice = addInvoice({
+    const newInvoice = await addInvoice({
       branchId,
       customerId,
       contractId,
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     // Send WhatsApp notification if autoNotification is enabled
     if (newInvoice.autoNotification) {
-      const customers = getCustomers();
+      const customers = await getCustomers();
       const customer = customers.find((c) => c.id === customerId);
       if (customer) {
         const msg =

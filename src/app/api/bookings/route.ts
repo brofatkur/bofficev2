@@ -4,7 +4,7 @@ import { getBookings, addBooking, cancelBooking, getBranches, getMeetingRooms } 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const branchId = searchParams.get('branchId') || undefined;
-  const bookings = getBookings(branchId);
+  const bookings = await getBookings(branchId);
   return NextResponse.json({ success: true, data: bookings });
 }
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     // Auto-resolve roomId if not selected (1 branch has 1 room in MVP per PRD 5.3)
     if (!roomId) {
-      const rooms = getMeetingRooms(branchId);
+      const rooms = await getMeetingRooms(branchId);
       if (rooms.length > 0) {
         roomId = rooms[0].id;
       } else {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const endM = parseInt(endTime.split(':')[1], 10);
     const durationHours = Math.max(0.5, parseFloat(((endH * 60 + endM - (startH * 60 + startM)) / 60).toFixed(2)));
 
-    const result = addBooking({
+    const result = await addBooking({
       branchId,
       roomId,
       customerId,
@@ -65,7 +65,7 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: 'Booking ID required' }, { status: 400 });
 
-    const cancelled = cancelBooking(id);
+    const cancelled = await cancelBooking(id);
     return NextResponse.json({ success: cancelled });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

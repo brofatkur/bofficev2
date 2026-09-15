@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = recordInvoicePayment({
+    const result = await recordInvoicePayment({
       invoiceId,
       amount: Number(amount),
       paymentDate,
@@ -28,9 +28,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Auto notification via WhatsApp if enabled
-    const settings = getSettings();
+    const settings = await getSettings();
     if (settings.autoNotificationEnabled && result.invoice) {
-      const customers = getCustomers();
+      const customers = await getCustomers();
       const customer = customers.find((c) => c.id === result.invoice?.customerId);
       if (customer) {
         const msg =

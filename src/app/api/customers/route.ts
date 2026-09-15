@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCustomers, addCustomer, updateLead } from '@/lib/data-store';
 
 export async function GET() {
-  const customers = getCustomers();
+  const customers = await getCustomers();
   return NextResponse.json({ success: true, data: customers });
 }
 
@@ -12,11 +12,11 @@ export async function POST(req: NextRequest) {
     if (!body.companyName || !body.picName || !body.phone) {
       return NextResponse.json({ success: false, error: 'Data perusahaan, PIC, dan telepon wajib diisi' }, { status: 400 });
     }
-    const newCustomer = addCustomer(body);
+    const newCustomer = await addCustomer(body);
 
     // If converted from a lead, automatically update lead status to closed_won
     if (body.leadId) {
-      updateLead(body.leadId, { status: 'closed_won' });
+      await updateLead(body.leadId, { status: 'closed_won' });
     }
 
     return NextResponse.json({ success: true, data: newCustomer });

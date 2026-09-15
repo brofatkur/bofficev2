@@ -4,9 +4,9 @@ import { sendWhatsAppMessage } from '@/lib/kirimdev';
 
 export async function POST() {
   try {
-    const contracts = getContracts();
-    const customers = getCustomers();
-    const offices = getOffices();
+    const contracts = await getContracts();
+    const customers = await getCustomers();
+    const offices = await getOffices();
 
     const today = new Date();
     const sentResults: any[] = [];
@@ -36,7 +36,7 @@ export async function POST() {
             messageType: 'contract_renewal',
           });
 
-          updateContract(contract.id, {
+          await updateContract(contract.id, {
             status: 'expiring_soon',
             lastWaReminderSentAt: new Date().toISOString(),
           });

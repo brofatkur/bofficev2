@@ -15,11 +15,11 @@ export async function POST(req: NextRequest) {
 
     // Resolve room in branch if not provided
     if (!roomId) {
-      const rooms = getMeetingRooms(branchId);
+      const rooms = await getMeetingRooms(branchId);
       roomId = rooms.length > 0 ? rooms[0].id : 'mr_' + branchId;
     }
 
-    const result = checkInAttendee({
+    const result = await checkInAttendee({
       phone,
       name,
       organization,

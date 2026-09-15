@@ -11,13 +11,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Log ID required' }, { status: 400 });
     }
 
-    const updatedLog = checkOutAttendee(logId);
+    const updatedLog = await checkOutAttendee(logId);
     if (!updatedLog) {
       return NextResponse.json({ success: false, error: 'Sesi check-in tidak ditemukan' }, { status: 404 });
     }
 
     // Optionally send KirimDev WhatsApp Check-Out Notification Summary!
-    const rooms = getMeetingRooms();
+    const rooms = await getMeetingRooms();
     const room = rooms.find((r) => r.id === updatedLog.roomId);
     const roomName = room ? room.name : 'Meeting Room';
 

@@ -22,7 +22,7 @@ export async function sendWhatsAppMessage({
   message,
   messageType = 'custom',
 }: SendWAMessageParams): Promise<{ success: boolean; log: WhatsAppLog; response?: any; error?: string }> {
-  const settings: AppSettings = getSettings();
+  const settings: AppSettings = await getSettings();
   const formattedPhone = formatPhoneNumber(to);
 
   const apiKey = settings.kirimdevApiKey?.trim();
@@ -40,7 +40,7 @@ export async function sendWhatsAppMessage({
       status: 'simulated',
       sentAt: new Date().toISOString(),
     };
-    addWhatsAppLog(simulatedLog);
+    await addWhatsAppLog(simulatedLog);
     return {
       success: true,
       log: simulatedLog,
@@ -77,7 +77,7 @@ export async function sendWhatsAppMessage({
         sentAt: new Date().toISOString(),
         error: errorMsg,
       };
-      addWhatsAppLog(failedLog);
+      await addWhatsAppLog(failedLog);
       return { success: false, log: failedLog, error: errorMsg, response: data };
     }
 
@@ -89,7 +89,7 @@ export async function sendWhatsAppMessage({
       status: 'sent',
       sentAt: new Date().toISOString(),
     };
-    addWhatsAppLog(successLog);
+    await addWhatsAppLog(successLog);
 
     return { success: true, log: successLog, response: data };
   } catch (err: any) {
@@ -102,7 +102,7 @@ export async function sendWhatsAppMessage({
       sentAt: new Date().toISOString(),
       error: err.message || 'Koneksi API Gagal',
     };
-    addWhatsAppLog(errorLog);
+    await addWhatsAppLog(errorLog);
     return { success: false, log: errorLog, error: err.message };
   }
 }
