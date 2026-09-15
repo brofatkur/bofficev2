@@ -14,6 +14,11 @@ import {
   Clock,
   DollarSign,
   CheckCircle2,
+  GitFork,
+  UserCheck,
+  MapPin,
+  QrCode,
+  ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,13 +30,14 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     try {
-      const [leadsRes, officesRes, customersRes, contractsRes, bookingsRes, invoicesRes] = await Promise.all([
+      const [leadsRes, officesRes, customersRes, contractsRes, bookingsRes, invoicesRes, branchesRes] = await Promise.all([
         fetch('/api/leads').then((r) => r.json()),
         fetch('/api/offices').then((r) => r.json()),
         fetch('/api/customers').then((r) => r.json()),
         fetch('/api/contracts').then((r) => r.json()),
         fetch('/api/bookings').then((r) => r.json()),
         fetch('/api/invoices').then((r) => r.json()),
+        fetch('/api/branches').then((r) => r.json()),
       ]);
 
       const leads = leadsRes.data || [];
@@ -40,55 +46,34 @@ export default function DashboardPage() {
       const contracts = contractsRes.data || [];
       const bookings = bookingsRes.data || [];
       const invoices = invoicesRes.data || [];
+      const branches = branchesRes.data || [];
 
-      // Calculate Metrics
-      const totalLeads = leads.length;
-      const closedWonLeads = leads.filter((l: any) => l.status === 'closed_won').length;
-      const closingRate = totalLeads > 0 ? Math.round((closedWonLeads / totalLeads) * 100) : 0;
+      const totalTenants = customers.filter((c: any) => c.status === 'aktif').length;
+      const pendingVerifications = customers.filter((c: any) => c.status === 'calon_tenant').length;
 
       const activeContracts = contracts.filter((c: any) => c.status === 'active' || c.status === 'expiring_soon');
       const physicalRentals = activeContracts.filter((c: any) => c.rentalType === 'physical').length;
       const virtualRentals = activeContracts.filter((c: any) => c.rentalType === 'virtual').length;
 
-      const totalRevenue = invoices
-        .filter((i: any) => i.status === 'paid')
-        .reduce((sum: number, i: any) => sum + i.totalAmount, 0);
-
-      const pendingInvoiceCount = invoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length;
+      const totalRevenue = invoices.reduce((sum: number, i: any) => sum + (i.totalPaid || 0), 0);
+      const totalOutstanding = invoices.reduce((sum: number, i: any) => sum + (i.remainingAmount || 0), 0);
 
       // Expiring Contracts (within 30 days)
       const expiringContracts = contracts.filter((c: any) => c.status === 'expiring_soon');
 
-      // Meeting Room Quota Usage per Customer for current month (2026-09)
-      const currentMonth = '2026-09';
-      const customerMeetingStats = customers.map((cus: any) => {
-        const cusBookings = bookings.filter((b: any) => b.customerId === cus.id && b.date.startsWith(currentMonth));
-        const usedHours = cusBookings.reduce((sum: number, b: any) => sum + b.durationHours, 0);
-        const freeQuota = 8;
-        const overageHours = Math.max(0, usedHours - freeQuota);
-        const overageFee = overageHours * 90000;
-        return {
-          customer: cus,
-          usedHours,
-          remainingFree: Math.max(0, freeQuota - usedHours),
-          overageHours,
-          overageFee,
-        };
-      });
-
       setData({
-        totalLeads,
-        closingRate,
-        closedWonLeads,
+        totalTenants,
+        pendingVerifications,
+        branchesCount: branches.length,
         activeContractsCount: activeContracts.length,
         physicalRentals,
         virtualRentals,
         totalRevenue,
-        pendingInvoiceCount,
+        totalOutstanding,
         expiringContracts,
-        customerMeetingStats,
         customers,
-        offices,
+        branches,
+        bookings,
       });
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -106,14 +91,16 @@ export default function DashboardPage() {
     setWaNotice(null);
     try {
       const customer = data.customers.find((c: any) => c.id === contract.customerId);
-      const office = data.offices.find((o: any) => o.id === contract.officeId);
+      const branch = data.branches.find((b: any) => b.id === contract.branchId);
 
       if (!customer) return;
 
-      const message = `Halo ${customer.picName} (${customer.companyName}),\n\n` +
-        `Pengingat perpanjangan sewa *${office?.name || 'Kantor'}* yang akan berakhir pada *${contract.endDate}*.\n` +
-        `Mohon konfirmasi kelanjutan sewa Anda.\n\n` +
-        `Terima kasih,\nNusantara Office Center`;
+      const message =
+        `*PENGINGAT KONTRAK SEWA — BOffice*\n\n` +
+        `Yth. ${customer.picName} (${customer.companyName}),\n` +
+        `Kontrak sewa Anda di *BOffice ${branch?.name || ''}* akan berakhir pada *${contract.endDate}*.\n` +
+        `Mohon konfirmasi perpanjangan sewa Anda agar operasional dan hak kuota Meeting Room 8 jam/bulan tetap aktif.\n\n` +
+        `Terima kasih! 🙏\nTim BOffice Indonesia`;
 
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
@@ -143,34 +130,53 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Top Banner & Quick Stat Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-6 rounded-2xl text-white shadow-xl">
-        <div>
-          <h1 className="text-xl font-bold">Dashboard Manajemen Penyewaan & CRM</h1>
-          <p className="text-slate-300 text-xs mt-1">
-            Ringkasan penyewaan kantor fisik, virtual office, CRM sales, dan kuota meeting room bulan ini.
+      {/* Top Banner with BOffice Logo & Quick Actions */}
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 border border-slate-800">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/95 px-3 py-1.5 rounded-xl shadow-md">
+              <img
+                src="/logo.webp"
+                alt="BOffice"
+                className="h-7 w-auto object-contain"
+              />
+            </div>
+            <span className="text-xs font-bold text-blue-400 bg-blue-950/80 px-2.5 py-1 rounded-full border border-blue-800">
+              Sistem Operasional v4.0
+            </span>
+          </div>
+          <h1 className="text-xl font-extrabold tracking-wide">
+            Pusat Pengelolaan BOffice Multi-Cabang
+          </h1>
+          <p className="text-slate-400 text-xs max-w-xl leading-relaxed">
+            Manajemen operasional Virtual Office, Private Office, booking meeting room lintas cabang, invoice dengan kuitansi resmi, dan pengingat kontrak otomatis.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex flex-wrap items-center gap-3">
           <Link
-            href="/crm"
-            className="text-xs bg-emerald-600 hover:bg-emerald-500 font-semibold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
+            href="/attendance"
+            target="_blank"
+            className="text-xs bg-emerald-600 hover:bg-emerald-500 font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-600/30 flex items-center gap-2"
           >
-            <span>+ Lead Sales Baru</span>
+            <QrCode className="w-4 h-4" />
+            <span>Portal Check-In Tamu</span>
           </Link>
+
           <Link
-            href="/meeting-rooms"
-            className="text-xs bg-slate-800 hover:bg-slate-700 font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
+            href="/register"
+            target="_blank"
+            className="text-xs bg-blue-600 hover:bg-blue-500 font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/30 flex items-center gap-2"
           >
-            <CalendarDays className="w-4 h-4 text-emerald-400" />
-            <span>Booking Meeting</span>
+            <Users className="w-4 h-4" />
+            <span>Form Registrasi Tenant</span>
           </Link>
         </div>
       </div>
@@ -182,21 +188,40 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Pending Verifications Alert if any */}
+      {data?.pendingVerifications > 0 && (
+        <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl text-xs flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <span className="font-extrabold">{data.pendingVerifications} Pendaftaran Tenant Baru Menunggu Verifikasi!</span>
+              <p className="text-amber-700 text-[11px] mt-0.5">Calon tenant telah mengisi form registrasi mandiri dan menunggu verifikasi admin.</p>
+            </div>
+          </div>
+          <Link
+            href="/customers"
+            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-[11px] transition-all shrink-0"
+          >
+            Lihat & Verifikasi
+          </Link>
+        </div>
+      )}
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Active Contracts */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+        {/* Card 1: Active Tenants */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Kontrak Sewa Aktif</span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Building2 className="w-5 h-5" />
+            <span className="text-xs font-semibold text-slate-500">Penyewa Aktif (Tenants)</span>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Users className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-slate-900">{data?.activeContractsCount}</div>
+            <div className="text-2xl font-black text-slate-900">{data?.totalTenants}</div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
-              <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
-                {data?.physicalRentals} Fisik
+              <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-medium">
+                {data?.physicalRentals} Private Office
               </span>
               <span>•</span>
               <span className="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded font-medium">
@@ -206,51 +231,51 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Card 2: CRM Sales & Closing Rate */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+        {/* Card 2: Branches */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Closing Rate Sales</span>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5" />
+            <span className="text-xs font-semibold text-slate-500">Cabang BOffice Beroperasi</span>
+            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <GitFork className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-slate-900">{data?.closingRate}%</div>
+            <div className="text-2xl font-black text-slate-900">{data?.branchesCount} Cabang</div>
             <div className="text-[11px] text-slate-500 mt-1">
-              {data?.closedWonLeads} dari {data?.totalLeads} Lead berhasil Closing
+              Jakarta, Surabaya, Bali, Bandung
             </div>
           </div>
         </div>
 
-        {/* Card 3: Pendapatan Lunas */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+        {/* Card 3: Total Paid */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Pendapatan Terbayar</span>
-            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <span className="text-xs font-semibold text-slate-500">Pembayaran Diterima</span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-slate-900">
+            <div className="text-2xl font-black text-emerald-700">
               Rp {data?.totalRevenue?.toLocaleString('id-ID')}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Total pembayaran sewa & overage</div>
+            <div className="text-[11px] text-slate-500 mt-1">Total pembayaran tercatat (Kuitansi)</div>
           </div>
         </div>
 
-        {/* Card 4: Meeting Room Usage & Overage Alerts */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+        {/* Card 4: Outstanding Invoices */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Meeting Room Quota</span>
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Clock className="w-5 h-5" />
+            <span className="text-xs font-semibold text-slate-500">Sisa Piutang Tagihan</span>
+            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <CreditCard className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-slate-900">8 Jam/Bln</div>
-            <div className="text-[11px] text-amber-600 font-medium mt-1">
-              Over kuota: Rp 90.000 / jam
+            <div className="text-2xl font-black text-rose-600">
+              Rp {data?.totalOutstanding?.toLocaleString('id-ID')}
             </div>
+            <div className="text-[11px] text-slate-500 mt-1">Invoice belum lunas / bertahap</div>
           </div>
         </div>
       </div>
@@ -259,12 +284,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Columns: Expiring Contracts & WA Reminders */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Expiring Contracts Table Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-500" />
-                <h2 className="font-bold text-slate-800 text-sm">Pengingat Perpanjangan Kontrak (Mendekati Expiry)</h2>
+                <h2 className="font-bold text-slate-800 text-sm">Pengingat Kontrak Sewa (Mendekati Jatuh Tempo)</h2>
               </div>
               <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full font-semibold border border-amber-200">
                 {data?.expiringContracts?.length || 0} Kontrak
@@ -273,15 +297,15 @@ export default function DashboardPage() {
 
             {data?.expiringContracts?.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-xs">
-                Tidak ada kontrak sewa yang mendekati masa habis dalam 30 hari ke depan.
+                Tidak ada kontrak sewa yang mendekati masa habis.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 text-slate-400 font-semibold uppercase tracking-wider">
-                      <th className="pb-3">Perusahaan / Customer</th>
-                      <th className="pb-3">Tipe Sewa</th>
+                      <th className="pb-3">Penyewa & Cabang</th>
+                      <th className="pb-3">Layanan</th>
                       <th className="pb-3">Tgl Berakhir</th>
                       <th className="pb-3 text-right">Aksi WhatsApp</th>
                     </tr>
@@ -289,24 +313,23 @@ export default function DashboardPage() {
                   <tbody className="divide-y divide-slate-100">
                     {data?.expiringContracts?.map((contract: any) => {
                       const customer = data.customers.find((c: any) => c.id === contract.customerId);
-                      const office = data.offices.find((o: any) => o.id === contract.officeId);
+                      const branch = data.branches.find((b: any) => b.id === contract.branchId);
+
                       return (
                         <tr key={contract.id} className="hover:bg-slate-50 transition-colors">
                           <td className="py-3 font-semibold text-slate-800">
                             <div>{customer?.companyName || 'N/A'}</div>
-                            <div className="text-[11px] font-normal text-slate-400">{customer?.picName} ({customer?.phone})</div>
+                            <div className="text-[11px] text-blue-600 font-normal">
+                              BOffice {branch?.name || branch?.code}
+                            </div>
                           </td>
                           <td className="py-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              contract.rentalType === 'physical' ? 'bg-emerald-50 text-emerald-700' : 'bg-teal-50 text-teal-700'
-                            }`}>
-                              {contract.rentalType === 'physical' ? 'Kantor Fisik' : 'Virtual Office'} ({contract.billingCycle})
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700">
+                              {contract.rentalType === 'physical' ? 'Private Office' : 'Virtual Office'} ({contract.billingCycle})
                             </span>
-                            <div className="text-[11px] text-slate-500 mt-0.5">{office?.name}</div>
                           </td>
-                          <td className="py-3 text-slate-700 font-medium">
-                            <div className="text-rose-600 font-bold">{contract.endDate}</div>
-                            <div className="text-[10px] text-slate-400">Expiring Soon</div>
+                          <td className="py-3 font-bold text-rose-600">
+                            {contract.endDate}
                           </td>
                           <td className="py-3 text-right">
                             <button
@@ -326,98 +349,40 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
-          {/* CRM Sales Pipeline Breakdown */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-slate-800 text-sm">Status Pipeline CRM Sales</h2>
-              <Link href="/crm" className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1">
-                <span>Buka CRM Full</span>
-                <ArrowUpRight className="w-4 h-4" />
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <div className="text-slate-400 font-semibold text-[10px] uppercase">Prospek</div>
-                <div className="text-lg font-bold text-slate-800 mt-1">2</div>
-              </div>
-              <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100">
-                <div className="text-blue-600 font-semibold text-[10px] uppercase">Contacted</div>
-                <div className="text-lg font-bold text-blue-700 mt-1">1</div>
-              </div>
-              <div className="p-3 rounded-xl bg-purple-50/50 border border-purple-100">
-                <div className="text-purple-600 font-semibold text-[10px] uppercase">Negotiation</div>
-                <div className="text-lg font-bold text-purple-700 mt-1">1</div>
-              </div>
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                <div className="text-emerald-700 font-semibold text-[10px] uppercase">Closing (Won)</div>
-                <div className="text-lg font-bold text-emerald-800 mt-1">{data?.closedWonLeads}</div>
-              </div>
-              <div className="p-3 rounded-xl bg-rose-50/50 border border-rose-100">
-                <div className="text-rose-600 font-semibold text-[10px] uppercase">Belum Closing</div>
-                <div className="text-lg font-bold text-rose-700 mt-1">0</div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Right 1 Column: Meeting Room Quota Tracker per Tenant */}
+        {/* Right 1 Column: Branches Directory Quick Links */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-bold text-slate-800 text-sm">Tracking Kuota Meeting Room</h2>
-                <p className="text-[11px] text-slate-400">Pemakaian Bulan September 2026</p>
-              </div>
-              <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded border border-amber-200">
-                Quota: 8 Jam/Bln
-              </span>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="font-bold text-slate-900 text-sm">Cabang BOffice & Check-In</h2>
+              <Link href="/branches" className="text-xs text-blue-600 font-bold hover:underline">
+                Kelola Cabang
+              </Link>
             </div>
 
-            <div className="space-y-4">
-              {data?.customerMeetingStats?.map((stat: any) => (
-                <div key={stat.customer.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-800">{stat.customer.companyName}</span>
-                    <span className="text-[11px] font-semibold text-slate-600">
-                      {stat.usedHours} / 8 Jam Terpakai
+            <div className="space-y-3">
+              {data?.branches?.map((b: any) => (
+                <div key={b.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between font-bold text-slate-800">
+                    <span>{b.name}</span>
+                    <span className="font-mono text-[10px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-700">
+                      {b.code}
                     </span>
                   </div>
-
-                  {/* Progress Bar */}
-                  <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        stat.usedHours > 8 ? 'bg-rose-500' : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${Math.min(100, (stat.usedHours / 8) * 100)}%` }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px]">
-                    {stat.overageHours > 0 ? (
-                      <span className="text-rose-600 font-semibold flex items-center gap-1">
-                        ⚠️ Over {stat.overageHours} Jam (+Rp {stat.overageFee.toLocaleString('id-ID')})
-                      </span>
-                    ) : (
-                      <span className="text-emerald-600 font-medium">
-                        Sisa Kuota Gratis: {stat.remainingFree} Jam
-                      </span>
-                    )}
-
+                  <div className="text-[11px] text-slate-500">{b.city}</div>
+                  <div className="pt-1 flex justify-end">
                     <Link
-                      href="/meeting-rooms"
-                      className="text-slate-500 hover:text-slate-800 underline text-[10px]"
+                      href={`/attendance/${b.code}`}
+                      target="_blank"
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1"
                     >
-                      Detail Booking
+                      <span>Form Check-In Cabang</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>
                 </div>
               ))}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed">
-              💡 *Setiap jam kelebihan setelah 8 jam otomatis dihitung Rp 90.000 / jam dan dimasukkan ke invoice.*
             </div>
           </div>
         </div>

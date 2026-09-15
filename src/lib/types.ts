@@ -1,15 +1,54 @@
 export type LeadStatus = 'prospect' | 'contacted' | 'negotiation' | 'closed_won' | 'closed_lost';
 export type RentalType = 'physical' | 'virtual';
 export type BillingCycle = 'monthly' | 'yearly';
+export type ServiceType = 'virtual_office' | 'private_office';
+export type EntityType = 'PT' | 'CV' | 'Perorangan' | 'Yayasan' | 'Firma' | 'Lainnya';
+export type TenantStatus = 'calon_tenant' | 'aktif' | 'tidak_aktif';
+export type InvoiceStatus = 'belum_dibayar' | 'dibayar_sebagian' | 'lunas';
+
+// Modul 1: Cabang (Branches)
+export interface Branch {
+  id: string;
+  code: string; // e.g. JKT-SUD, JKT-THM, SBY-GUB, DPS-KUT, BDG-DGO
+  name: string;
+  city: string;
+  address: string;
+  phone: string;
+  status: 'active' | 'inactive';
+  publicAttendanceUrl?: string;
+  createdAt: string;
+}
+
+// Modul 2: Profil Data Penyewa (Tenant Profile)
+export interface Customer {
+  id: string;
+  companyName: string;
+  entityType: EntityType;
+  serviceType: ServiceType;
+  branchId: string;
+  picName: string;
+  phone: string;
+  email: string;
+  address: string;
+  npwp?: string;
+  nib?: string;
+  status: TenantStatus;
+  startDate: string;
+  notes?: string;
+  leadId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Lead {
   id: string;
   name: string;
   companyName: string;
-  phone: string; // e.g. +628123456789
+  phone: string;
   email: string;
   interestType: RentalType;
   billingCycle: BillingCycle;
+  branchId?: string;
   estimatedValue: number;
   status: LeadStatus;
   notes?: string;
@@ -19,6 +58,7 @@ export interface Lead {
 
 export interface OfficeSpace {
   id: string;
+  branchId: string;
   code: string;
   name: string;
   type: RentalType;
@@ -31,22 +71,68 @@ export interface OfficeSpace {
   description?: string;
 }
 
-export interface Customer {
+// Modul 3: Booking Ruang Meeting Lintas Cabang
+export interface MeetingRoom {
   id: string;
-  companyName: string;
-  picName: string;
-  phone: string;
-  email: string;
-  address: string;
-  npwp?: string;
-  leadId?: string;
+  branchId: string;
+  name: string;
+  capacity: number;
+  facilities: string[];
+  hourlyOverageRate: number; // Default Rp 90.000
+}
+
+export interface MeetingBooking {
+  id: string;
+  branchId: string;
+  roomId: string;
+  customerId: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  durationHours: number;
+  createdBy: 'tenant' | 'admin' | 'sales';
+  status: 'confirmed' | 'cancelled';
+  isOverage?: boolean;
+  overageFee?: number;
   createdAt: string;
 }
 
+// Modul 4: Daftar Hadir & Pemakaian Ruang Meeting (Check-In / Check-Out)
+export interface MeetingAttendee {
+  id: string;
+  phone: string; // normalisasi +62 / 08
+  name: string;
+  organization: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MeetingAttendanceLog {
+  id: string;
+  attendeeId: string;
+  phone: string;
+  name: string;
+  organization: string;
+  branchId: string;
+  roomId: string;
+  bookingId?: string; // wajib tertaut ke booking yang sedang berlangsung sesuai PRD 5.4!
+  title?: string;
+  checkInTime: string; // Server ISO string
+  checkOutTime?: string; // Server ISO string
+  durationMinutes?: number;
+  durationHours?: number;
+  status: 'active' | 'completed';
+  notes?: string;
+  createdAt: string;
+}
+
+// Modul 5: Manajemen Sewa & Kontrak
 export interface Contract {
   id: string;
   contractNumber: string;
   customerId: string;
+  branchId: string;
   officeId: string;
   rentalType: RentalType;
   billingCycle: BillingCycle;
@@ -59,83 +145,69 @@ export interface Contract {
   createdAt: string;
 }
 
-export interface MeetingRoom {
-  id: string;
-  name: string;
-  capacity: number;
-  facilities: string[];
-  hourlyOverageRate: number; // Default Rp 90,000
-}
-
-export interface MeetingBooking {
-  id: string;
-  roomId: string;
-  customerId: string;
-  title: string;
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:mm
-  endTime: string; // HH:mm
-  durationHours: number;
-  isOverage: boolean;
-  overageFee: number;
-  createdAt: string;
-}
-
-// Guest / Attendee Directory
-export interface MeetingAttendee {
-  id: string;
-  phone: string;
-  name: string;
-  organization: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Attendance Log with Live Stopwatch Check-in / Check-out Tracking
-export interface MeetingAttendanceLog {
-  id: string;
-  attendeeId: string;
-  phone: string;
-  name: string;
-  organization: string;
-  roomId: string;
-  customerId?: string;
-  title?: string;
-  checkInTime: string; // ISO String
-  checkOutTime?: string; // ISO String
-  durationMinutes?: number;
-  durationHours?: number;
-  status: 'active' | 'completed';
-  createdAt: string;
-}
-
+// Modul 6: Invoice & Penagihan (Diskon & Pajak per Item & Total, Pembayaran Bertahap)
 export interface InvoiceItem {
+  id: string;
   description: string;
-  amount: number;
+  itemType: 'jasa' | 'barang';
   quantity: number;
+  amount: number;
+  discountType?: 'nominal' | 'percentage';
+  discountValue?: number;
+  discountAmount: number;
+  taxName?: string;
+  taxPercent?: number;
+  taxAmount: number;
   total: number;
+}
+
+export interface TotalTaxItem {
+  name: string;
+  percent: number;
+  amount: number;
+}
+
+export interface InvoicePayment {
+  id: string;
+  invoiceId: string;
+  receiptNumber: string; // e.g. KWT/JKT-SUD/2026/001
+  paymentDate: string;
+  amount: number;
+  paymentMethod: string;
+  notes?: string;
+  recordedBy: string;
+  createdAt: string;
 }
 
 export interface Invoice {
   id: string;
-  invoiceNumber: string;
+  invoiceNumber: string; // Format PRD: INV/[KODE-CABANG]/2026/001
+  branchId: string;
   customerId: string;
   contractId?: string;
   issueDate: string;
   dueDate: string;
   items: InvoiceItem[];
   subtotal: number;
-  tax: number;
+  totalDiscountType?: 'nominal' | 'percentage';
+  totalDiscountValue?: number;
+  totalDiscountAmount: number;
+  totalTaxes: TotalTaxItem[];
+  totalTaxAmount: number;
   totalAmount: number;
-  status: 'draft' | 'pending' | 'paid' | 'overdue';
+  totalPaid: number;
+  remainingAmount: number;
+  status: InvoiceStatus;
+  autoNotification: boolean;
   lastWaSentAt?: string;
+  payments: InvoicePayment[];
   createdAt: string;
 }
 
 export interface WhatsAppLog {
   id: string;
   recipient: string;
-  messageType: 'contract_renewal' | 'invoice' | 'test' | 'custom' | 'attendance';
+  messageType: 'contract_renewal' | 'invoice' | 'test' | 'custom' | 'attendance' | 'receipt';
   content: string;
   status: 'sent' | 'failed' | 'simulated';
   sentAt: string;
@@ -151,4 +223,6 @@ export interface AppSettings {
   bankAccountInfo: string;
   meetingRoomMonthlyFreeHours: number; // Default 8
   meetingRoomOverageRatePerHour: number; // Default 90000
+  autoNotificationEnabled: boolean;
+  reminderIntervals: number[]; // e.g. [30, 14, 1]
 }

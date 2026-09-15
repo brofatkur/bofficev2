@@ -1,55 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getInvoices, addInvoice, updateInvoice } from '@/lib/data-store';
+import { getInvoices, addInvoice, getCustomers } from '@/lib/data-store';
+import { sendWhatsAppMessage } from '@/lib/kirimdev';
 
-export async function GET() {
-  const invoices = getInvoices();
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const branchId = searchParams.get('branchId') || undefined;
+  const invoices = getInvoices(branchId);
   return NextResponse.json({ success: true, data: invoices });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { customerId, items, dueDate } = body;
-
-    if (!customerId || !items || !items.length || !dueDate) {
-      return NextResponse.json({ success: false, error: 'Customer, item tagihan, dan tanggal jatuh tempo wajib diisi' }, { status: 400 });
-    }
-
-    const invoiceNumber = `INV/NOC/${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`;
-    const subtotal = items.reduce((sum: number, item: any) => sum + (item.total || item.amount * item.quantity), 0);
-    const tax = 0; // Tax calculation can be added if needed
-    const totalAmount = subtotal + tax;
-
-    const newInvoice = addInvoice({
-      invoiceNumber,
+    const {
+      branchId,
       customerId,
-      contractId: body.contractId,
-      issueDate: new Date().toISOString().split('T')[0],
+      contractId,
+      issueDate,
       dueDate,
       items,
-      subtotal,
-      tax,
-      totalAmount,
-      status: 'pending',
-    });
+      totalDiscountType,
+      totalDiscountValue,
+      totalTaxes,
+      autoNotification,
+    } = body;
 
-    return NextResponse.json({ success: true, data: newInvoice });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-  }
-}
-
-export async function PUT(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { id, status } = body;
-
-    if (!id || !status) {
-      return NextResponse.json({ success: false, error: 'Invoice ID dan Status required' }, { status: 400 });
+    if (!branchId || !customerId || !items || !items.length || !dueDate) {
+      return NextResponse.json(
+        { success: false, error: 'Cabang, Customer, rincian item, dan tanggal jatuh tempo wajib diisi' },
+        { status: 400 }
+      );
     }
 
-    const updated = updateInvoice(id, { status });
-    return NextResponse.json({ success: true, data: updated });
+    const newInvoice = addInvoice({
+      branchId,
+      customerId,
+      contractId,
+      issueDate: issueDate || new Date().toISOString().split('T')[0],
+      dueDate,
+      items,
+      totalDiscountType,
+      totalDiscountValue: Number(totalDiscountValue || 0),
+      totalTaxes: totalTaxes || [],
+      autoNotification: autoNotification ?? true,
+    });
+
+    // Send WhatsApp notification if autoNotification is enabled
+    if (newInvoice.autoNotification) {
+      const customers = getCustomers();
+      const customer = customers.find((c) => c.id === customerId);
+      if (customer) {
+        const msg =
+          `*TAGIHAN RESMI (INVOICE) — BOffice*\n\n` +
+          `Yth. ${customer.companyName} (PIC: ${customer.picName}),\n` +
+          `Berikut diterbitkan tagihan resmi:\n` +
+          `• No. Invoice: *${newInvoice.invoiceNumber}*\n` +
+          `• Jatuh Tempo: *${newInvoice.dueDate}*\n` +
+          `• Total Tagihan: *Rp ${newInvoice.totalAmount.toLocaleString('id-ID')}*\n\n` +
+          `Rincian item:\n` +
+          newInvoice.items.map((i) => ` - ${i.description} (${i.quantity}x): Rp ${i.total.toLocaleString('id-ID')}`).join('\n') +
+          `\n\nPembayaran dapat ditransfer ke:\n` +
+          `*BCA 8800-1234-5678* a.n. PT BOffice Solusi Ruang.\n\n` +
+          `Terima kasih! 🙏`;
+
+        sendWhatsAppMessage({
+          to: customer.phone,
+          message: msg,
+          messageType: 'invoice',
+        }).catch(console.error);
+      }
+    }
+
+    return NextResponse.json({ success: true, data: newInvoice });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
