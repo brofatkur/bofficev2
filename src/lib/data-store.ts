@@ -93,5 +93,5 @@ export async function getOffices(branchId?:string):Promise<OfficeSpace[]>{ let q
 const defaultSettings:AppSettings={kirimdevApiKey:'',kirimdevPhoneNumberId:'',companyName:'BOffice Indonesia',companyAddress:'',companyPhone:'',bankAccountInfo:'',meetingRoomMonthlyFreeHours:8,meetingRoomOverageRatePerHour:90000,autoNotificationEnabled:true,reminderIntervals:[30,14,1]};
 export async function getSettings(){ const {data,error}=await insforge.database.from('app_settings').select().eq('id','default').maybeSingle();assertOk(error);return data?fromRow<AppSettings>(data as any):defaultSettings; }
 export async function updateSettings(settings:Partial<AppSettings>){ const updated=await updateOne<AppSettings>('app_settings','default',settings); return updated||insertOne<AppSettings>('app_settings',{id:'default',...defaultSettings,...settings}); }
-export async function getWhatsAppLogs(){ return list<WhatsAppLog>('whatsapp_logs'); }
+export async function getWhatsAppLogs():Promise<WhatsAppLog[]>{ const {data,error}=await insforge.database.from('whatsapp_logs').select().order('sent_at',{ascending:false}).limit(MAX_ROWS);assertOk(error);return ((data||[]) as any[]).map(fromRow<WhatsAppLog>); }
 export async function addWhatsAppLog(log:WhatsAppLog):Promise<void>{ await insertOne<WhatsAppLog>('whatsapp_logs',log); }
