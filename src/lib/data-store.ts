@@ -762,6 +762,46 @@ export function findOngoingBookingAtBranch(branchId: string, dateStr?: string, t
   return bookings[0] || null;
 }
 
+/**
+ * Cari data booking aktif / terjadwal untuk nomor HP tertentu di cabang ini
+ * Alur: Booking dulu baru bisa check-in
+ */
+export function getBookingsForCheckin(branchId: string, phone: string): {
+  found: boolean;
+  booking: MeetingBooking | null;
+  allBookings: MeetingBooking[];
+  customer: Customer | null;
+} {
+  const db = readDB();
+  const clean = normalizePhone(phone);
+  const today = new Date().toISOString().split('T')[0];
+
+  // Cari customer yang cocok
+  const matchedCust = db.customers.find((c) => normalizePhone(c.phone) === clean) || null;
+  const matchedCustId = matchedCust?.id;
+
+  // Filter booking yang sesuai di cabang ini
+  const branchBookings = db.bookings.filter(
+    (b) =>
+      b.branchId === branchId &&
+      b.status === 'confirmed' &&
+      (
+        (b.bookerPhone && normalizePhone(b.bookerPhone) === clean) ||
+        (matchedCustId && b.customerId === matchedCustId)
+      )
+  );
+
+  // Prioritaskan booking hari ini
+  const todayBooking = branchBookings.find((b) => b.date === today) || branchBookings[0] || null;
+
+  return {
+    found: Boolean(todayBooking),
+    booking: todayBooking,
+    allBookings: branchBookings,
+    customer: matchedCust,
+  };
+}
+
 export function getActiveAttendanceByPhone(phone: string): MeetingAttendanceLog | null {
   const db = readDB();
   const clean = normalizePhone(phone);

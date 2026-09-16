@@ -170,15 +170,25 @@ export default function MeetingRoomsPage() {
             Jadwal penggunaan ruang rapat, kuota 8 jam/bulan per tenant (overage Rp 90rb/jam), dan portal publik Check-in / Check-out stopwatch.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/book"
+            target="_blank"
+            className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
+          >
+            <CalendarDays className="w-4 h-4 text-blue-600" />
+            <span>Form Booking Publik</span>
+            <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+          </Link>
+
           <Link
             href="/attendance"
             target="_blank"
-            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-2"
+            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
           >
             <QrCode className="w-4 h-4 text-emerald-400" />
             <span>Portal Check-In Publik</span>
-            <ExternalLink className="w-3.5 h-3.5" />
+            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
           </Link>
 
           <button

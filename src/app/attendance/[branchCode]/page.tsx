@@ -2,45 +2,48 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import Image from 'next/image';
+import Link from 'next/link';
 import {
   Clock,
-  UserCheck,
-  Building2,
   Phone,
   LogIn,
   LogOut,
   CheckCircle2,
-  Sparkles,
-  Check,
   AlertCircle,
   MapPin,
   CalendarCheck,
+  Building2,
+  UserCheck,
+  ArrowRight,
+  CalendarX,
+  Search,
+  RefreshCw,
 } from 'lucide-react';
 
-export default function BranchPublicAttendancePage() {
+export default function BranchCheckInPage() {
   const params = useParams();
   const branchCode = (params?.branchCode as string)?.toUpperCase();
 
   const [branch, setBranch] = useState<any | null>(null);
   const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [organization, setOrganization] = useState('');
-  const [title, setTitle] = useState('Sesi Penggunaan Ruang Rapat');
+  const [loadingBranch, setLoadingBranch] = useState(true);
 
-  const [autoFilled, setAutoFilled] = useState(false);
+  // Lookup state
+  const [searching, setSearching] = useState(false);
+  const [searchAttempted, setSearchAttempted] = useState(false);
+  const [bookingData, setBookingData] = useState<any | null>(null);
+  const [bookingFound, setBookingFound] = useState<boolean>(false);
+
+  // Active session state (Check-In)
   const [activeLog, setActiveLog] = useState<any | null>(null);
-  const [matchedBooking, setMatchedBooking] = useState<any | null>(null);
-
-  const [loadingLookup, setLoadingLookup] = useState(false);
-  const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Stopwatch timer state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Completed receipt modal
+  // Receipt Modal on Checkout
   const [receipt, setReceipt] = useState<any | null>(null);
 
   // Load branch info
@@ -54,44 +57,68 @@ export default function BranchPublicAttendancePage() {
           setBranch(found);
         }
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoadingBranch(false));
   }, [branchCode]);
 
-  // Phone number lookup debounce (cross-branch per PRD 5.4)
-  useEffect(() => {
-    if (!phone || phone.length < 8) {
-      setAutoFilled(false);
+  // Check if phone already has an ongoing active attendance session
+  const checkActiveSession = async (phoneNumber: string) => {
+    try {
+      const res = await fetch(`/api/attendance/lookup?phone=${encodeURIComponent(phoneNumber)}`);
+      const data = await res.json();
+      if (data.success && data.data.activeLog) {
+        setActiveLog(data.data.activeLog);
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  };
+
+  // Check Booking by Phone
+  const handleSearchBooking = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!branch) return;
+    if (!phone || phone.trim().length < 8) {
+      alert('Masukkan nomor HP yang valid');
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setLoadingLookup(true);
-      try {
-        const res = await fetch(`/api/attendance/lookup?phone=${encodeURIComponent(phone)}`);
-        const data = await res.json();
-        if (data.success && data.data.found) {
-          const attendee = data.data.attendee;
-          setName(attendee.name);
-          setOrganization(attendee.organization);
-          setAutoFilled(true);
+    setSearching(true);
+    setSearchAttempted(true);
+    setNotice(null);
 
-          if (data.data.activeLog) {
-            setActiveLog(data.data.activeLog);
-          }
-        } else {
-          setAutoFilled(false);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingLookup(false);
+    try {
+      // 1. Check if visitor is already checked in (ongoing session)
+      const hasActive = await checkActiveSession(phone.trim());
+      if (hasActive) {
+        setSearching(false);
+        return;
       }
-    }, 500);
 
-    return () => clearTimeout(timer);
-  }, [phone]);
+      // 2. Check booking data
+      const res = await fetch(
+        `/api/attendance/check-booking?branchId=${branch.id}&phone=${encodeURIComponent(phone.trim())}`
+      );
+      const data = await res.json();
 
-  // Stopwatch interval
+      if (data.success && data.data.found && data.data.booking) {
+        setBookingFound(true);
+        setBookingData(data.data);
+      } else {
+        setBookingFound(false);
+        setBookingData(null);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setBookingFound(false);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Stopwatch interval when activeLog is present
   useEffect(() => {
     if (activeLog && activeLog.checkInTime) {
       const startTime = new Date(activeLog.checkInTime).getTime();
@@ -122,56 +149,49 @@ export default function BranchPublicAttendancePage() {
     return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
   };
 
-  const handleCheckIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!branch) {
-      alert('Cabang tidak valid.');
-      return;
-    }
-    if (!phone || !name || !organization) {
-      alert('Mohon lengkapi No. HP, Nama, dan Asal Lembaga.');
-      return;
-    }
+  // Check In Handler
+  const handleCheckInSubmit = async () => {
+    if (!branch || !bookingData?.booking) return;
 
-    setLoadingSubmit(true);
-    setNotice(null);
+    setLoadingAction(true);
     try {
+      const bookerName = bookingData.booking.bookerName || bookingData.tenantName || 'Tamu Rapat';
+      const org = bookingData.tenantName || 'Tenant BOffice';
+
       const res = await fetch('/api/attendance/checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone,
-          name,
-          organization,
+          phone: phone.trim(),
+          name: bookerName,
+          organization: org,
           branchId: branch.id,
-          title,
+          roomId: bookingData.booking.roomId,
+          bookingId: bookingData.booking.id,
+          title: bookingData.booking.title,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
         setActiveLog(data.data.log);
-        if (data.data.linkedBooking) {
-          setMatchedBooking(data.data.linkedBooking);
-          setNotice(`✅ Check-In Berhasil! Sesi otomatis ditautkan ke booking "${data.data.linkedBooking.title}". Timer pemakaian ruangan berjalan.`);
-        } else {
-          setNotice('✅ Check-In Berhasil! Timer waktu pemakaian ruangan mulai berjalan.');
-        }
+        setNotice('✅ Check-In Berhasil! Timer waktu pemakaian ruangan mulai berjalan.');
       } else {
-        alert(`Gagal: ${data.error}`);
+        alert(`Gagal Check-In: ${data.error}`);
       }
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     } finally {
-      setLoadingSubmit(false);
+      setLoadingAction(false);
     }
   };
 
-  const handleCheckOut = async () => {
+  // Check Out Handler
+  const handleCheckOutSubmit = async () => {
     if (!activeLog) return;
     if (!confirm('Apakah Anda yakin ingin keluar ruangan (Check Out) sekarang?')) return;
 
-    setLoadingSubmit(true);
+    setLoadingAction(true);
     try {
       const res = await fetch('/api/attendance/checkout', {
         method: 'POST',
@@ -183,21 +203,23 @@ export default function BranchPublicAttendancePage() {
       if (data.success) {
         setReceipt(data.data);
         setActiveLog(null);
-        setNotice('🎉 Check-Out Berhasil! Durasi aktual penggunaan ruangan telah tersimpan.');
+        setSearchAttempted(false);
+        setBookingData(null);
+        setNotice('🎉 Check-Out Berhasil! Durasi aktual pemakaian ruangan telah terekam.');
       } else {
-        alert(`Gagal: ${data.error}`);
+        alert(`Gagal Check-Out: ${data.error}`);
       }
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     } finally {
-      setLoadingSubmit(false);
+      setLoadingAction(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4 selection:bg-blue-600 selection:text-white">
       {/* Box */}
-      <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6 relative overflow-hidden">
+      <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-6 relative overflow-hidden">
         {/* Top Accent Line */}
         <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-emerald-500 to-teal-400" />
 
@@ -207,14 +229,16 @@ export default function BranchPublicAttendancePage() {
             <img
               src="/logo.webp"
               alt="BOffice Logo"
-              className="h-9 w-auto object-contain brightness-110"
+              className="h-10 w-auto object-contain brightness-110"
             />
           </div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
             <MapPin className="w-3.5 h-3.5" />
             <span>Cabang: {branch ? branch.name : branchCode || 'BOffice'}</span>
           </div>
-          <h1 className="text-xl font-extrabold text-white tracking-wide">Daftar Hadir Ruang Meeting</h1>
+          <h1 className="text-xl font-black text-white tracking-wide">
+            Check-In Meeting Room
+          </h1>
           <p className="text-slate-400 text-xs">
             {branch ? `${branch.address} • ${branch.city}` : 'BOffice Virtual & Private Office'}
           </p>
@@ -229,13 +253,13 @@ export default function BranchPublicAttendancePage() {
 
         {/* ACTIVE SESSION STOPWATCH (IF CHECKED IN) */}
         {activeLog ? (
-          <div className="bg-gradient-to-b from-slate-900 to-slate-800/90 rounded-2xl border border-emerald-500/40 p-6 text-center space-y-4 shadow-xl">
+          <div className="bg-gradient-to-b from-slate-950 to-slate-900 rounded-2xl border border-emerald-500/40 p-6 text-center space-y-4 shadow-xl">
             <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-950/60 py-1 px-3 rounded-full border border-emerald-800/50 w-fit mx-auto">
               <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span>Ruangan Sedang Digunakan</span>
+              <span>Ruangan Sedang Dipakai</span>
             </div>
 
             <div>
@@ -245,130 +269,156 @@ export default function BranchPublicAttendancePage() {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-700/60 text-xs text-left space-y-1.5">
+            <div className="pt-2 border-t border-slate-800 text-xs text-left space-y-1.5 font-sans">
               <div className="flex justify-between">
                 <span className="text-slate-400">Penanggung Jawab:</span>
                 <span className="font-bold text-white">{activeLog.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Asal Lembaga:</span>
-                <span className="font-semibold text-slate-200">{activeLog.organization}</span>
+                <span className="text-slate-400">Lembaga / Tenant:</span>
+                <span className="font-semibold text-blue-400">{activeLog.organization}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Waktu Check-In:</span>
+                <span className="text-slate-400">Waktu Masuk (Check-In):</span>
                 <span className="text-emerald-400 font-mono">
                   {new Date(activeLog.checkInTime).toLocaleTimeString('id-ID')}
                 </span>
               </div>
-              {activeLog.bookingId && (
-                <div className="flex justify-between text-blue-400">
-                  <span>Tertaut Booking:</span>
-                  <span className="font-semibold">{activeLog.title || activeLog.bookingId}</span>
-                </div>
-              )}
             </div>
 
             {/* Check Out Button */}
             <button
-              onClick={handleCheckOut}
-              disabled={loadingSubmit}
+              onClick={handleCheckOutSubmit}
+              disabled={loadingAction}
               className="w-full py-3.5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold rounded-2xl shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
             >
               <LogOut className="w-5 h-5" />
-              <span>{loadingSubmit ? 'Memproses Keluar...' : 'Keluar Ruangan (Check Out)'}</span>
+              <span>{loadingAction ? 'Memproses Keluar...' : 'Keluar Ruangan (Check Out)'}</span>
             </button>
           </div>
         ) : (
-          /* FORM CHECK-IN */
-          <form onSubmit={handleCheckIn} className="space-y-4 text-xs">
-            {/* Phone Input with Auto Lookup */}
-            <div>
-              <label className="block font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-blue-400" /> No. WhatsApp / HP Penanggung Jawab *
-                </span>
-                {loadingLookup && <span className="text-[10px] text-blue-400 animate-pulse">Memeriksa data...</span>}
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="Contoh: 081234567890"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-
-              {autoFilled && (
-                <div className="mt-1.5 text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Data terdeteksi otomatis dari pemakaian sebelumnya (lintas cabang)!</span>
+          /* STEP 1: INPUT NOMOR HP YANG SUDAH BOOKING */
+          <div className="space-y-4">
+            <form onSubmit={handleSearchBooking} className="space-y-3">
+              <div>
+                <label className="block font-semibold text-slate-300 text-xs mb-1 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-blue-400" /> Masukkan No. WhatsApp / HP Pemesan *
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: 081234567890"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      setSearchAttempted(false);
+                    }}
+                    className="flex-1 px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={searching}
+                    className="px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50 shrink-0"
+                  >
+                    {searching ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                    <span>Cek</span>
+                  </button>
                 </div>
-              )}
-            </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Masukkan nomor HP yang digunakan saat melakukan booking.
+                </p>
+              </div>
+            </form>
 
-            {/* Name Input */}
-            <div>
-              <label className="block font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-slate-400" /> Nama Lengkap *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="Nama Perwakilan Rapat"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {/* HASIL 1: DATA BOOKING DITEMUKAN -> TAMPILKAN DATA & TOMBOL CHECK-IN */}
+            {searchAttempted && bookingFound && bookingData && (
+              <div className="bg-slate-950 p-5 rounded-2xl border border-emerald-500/50 space-y-4 animate-fadeIn text-xs">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold border-b border-slate-800 pb-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Data Booking Ditemukan!</span>
+                </div>
 
-            {/* Organization / Company Input */}
-            <div>
-              <label className="block font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-slate-400" /> Asal Lembaga / Instansi / Tenant *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="Nama Perusahaan atau Instansi"
-                value={organization}
-                onChange={(e) => setOrganization(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+                <div className="space-y-2 text-slate-300">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Penanggung Jawab:</span>
+                    <span className="font-bold text-white">
+                      {bookingData.booking.bookerName || bookingData.tenantName}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Lembaga / Tenant:</span>
+                    <span className="font-bold text-blue-400">{bookingData.tenantName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Ruangan:</span>
+                    <span className="text-white">{bookingData.roomName}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-800 pt-2">
+                    <span className="text-slate-400">Jadwal Sesi:</span>
+                    <span className="font-mono text-emerald-400 font-bold">
+                      {bookingData.booking.date} • {bookingData.booking.startTime} - {bookingData.booking.endTime}
+                    </span>
+                  </div>
+                </div>
 
-            {/* Title / Topic */}
-            <div>
-              <label className="block font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
-                <CalendarCheck className="w-3.5 h-3.5 text-slate-400" /> Topik / Keperluan Rapat
-              </label>
-              <input
-                type="text"
-                placeholder="Rapat Koordinasi / Presentasi Klien"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+                {/* TOMBOL MASUK RUANGAN (CHECK IN) */}
+                <button
+                  type="button"
+                  onClick={handleCheckInSubmit}
+                  disabled={loadingAction}
+                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl shadow-lg shadow-emerald-600/30 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <LogIn className="w-5 h-5" />
+                  <span>{loadingAction ? 'Memproses Masuk...' : 'Masuk Ruangan (Check In)'}</span>
+                </button>
+              </div>
+            )}
 
-            {/* Check-In Submit Button */}
-            <button
-              type="submit"
-              disabled={loadingSubmit}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-2xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-            >
-              <LogIn className="w-5 h-5" />
-              <span>{loadingSubmit ? 'Memproses Check-In...' : 'Masuk Ruangan (Check In)'}</span>
-            </button>
-          </form>
+            {/* HASIL 2: TIDAK ADA DATA BOOKING -> TOMBOL MENGARAH KE FORM BOOKING (SESUAI ATURAN USER) */}
+            {searchAttempted && !bookingFound && (
+              <div className="bg-slate-950 p-5 rounded-2xl border border-rose-500/40 space-y-4 animate-fadeIn text-xs text-center">
+                <div className="w-12 h-12 bg-rose-500/10 text-rose-400 rounded-2xl flex items-center justify-center mx-auto">
+                  <CalendarX className="w-6 h-6" />
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-white text-sm">Belum Ada Data Booking</h3>
+                  <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                    Nomor HP <strong className="text-white font-mono">{phone}</strong> belum memiliki jadwal booking terkonfirmasi di cabang ini.
+                    Sesuai alur, Anda harus melakukan <strong>booking terlebih dahulu</strong> sebelum dapat check-in ke ruang rapat.
+                  </p>
+                </div>
+
+                <Link
+                  href={`/book?branch=${branch?.id || branchCode}`}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-md shadow-blue-600/30 transition-all text-xs flex items-center justify-center gap-2"
+                >
+                  <span>Buka Form Booking Sekarang</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* Footer Info */}
-        <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-400 text-center leading-relaxed">
-          Satu form mewakili satu sesi pemakaian. Waktu masuk dan keluar otomatis dicatat server dan ditautkan ke jadwal booking cabang ini.
+        {/* Footer info & Booking Switch */}
+        <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>Belum pesan ruang rapat?</span>
+          <Link
+            href={`/book?branch=${branch?.id || branchCode}`}
+            className="text-blue-400 hover:text-blue-300 font-bold underline"
+          >
+            Formulir Booking Ruangan →
+          </Link>
         </div>
       </div>
 
-      {/* Receipt Modal on Checkout */}
+      {/* Checkout Receipt Modal */}
       {receipt && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-fadeIn text-slate-200">
@@ -377,18 +427,18 @@ export default function BranchPublicAttendancePage() {
             </div>
 
             <div>
-              <h3 className="font-extrabold text-white text-base">Sesi Rapat Selesai</h3>
+              <h3 className="font-extrabold text-white text-base">Sesi Selesai</h3>
               <p className="text-slate-400 text-xs mt-0.5">Bukti Pemakaian Ruang Rapat BOffice</p>
             </div>
 
-            <div className="bg-slate-950 p-4 rounded-2xl text-xs space-y-2 text-left border border-slate-800">
+            <div className="bg-slate-950 p-4 rounded-2xl text-xs space-y-2 text-left border border-slate-800 font-sans">
               <div className="flex justify-between">
-                <span className="text-slate-400">Pengunjung:</span>
+                <span className="text-slate-400">Penanggung Jawab:</span>
                 <span className="font-bold text-white">{receipt.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Lembaga:</span>
-                <span className="text-slate-300">{receipt.organization}</span>
+                <span className="text-slate-400">Lembaga / Tenant:</span>
+                <span className="text-blue-400 font-semibold">{receipt.organization}</span>
               </div>
               <div className="flex justify-between border-t border-slate-800 pt-2">
                 <span className="text-slate-400">Jam Masuk:</span>
@@ -404,14 +454,14 @@ export default function BranchPublicAttendancePage() {
               </div>
               <div className="flex justify-between border-t border-slate-800 pt-2">
                 <span className="text-slate-400">Total Durasi:</span>
-                <span className="text-emerald-400 font-extrabold text-sm">
+                <span className="text-emerald-400 font-black text-sm">
                   {receipt.durationMinutes} Menit ({receipt.durationHours} Jam)
                 </span>
               </div>
             </div>
 
             <p className="text-[11px] text-emerald-400">
-              📲 Ringkasan waktu pemakaian telah dikirimkan via WhatsApp ke {receipt.phone}!
+              📲 Ringkasan pemakaian telah dikirimkan via WhatsApp ke {receipt.phone}!
             </p>
 
             <button

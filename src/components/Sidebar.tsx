@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   UserPlus,
   QrCode,
+  LogOut,
 } from 'lucide-react';
 
 const navigation = [
@@ -111,23 +112,28 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      {/* Info Box */}
-      <div className="p-4 m-3 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs">
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-1.5 font-bold text-blue-400 text-[11px]">
-            <span>BOffice Multi-Cabang</span>
+      {/* Super Admin & Logout Footer */}
+      <div className="p-3 border-t border-slate-800/80 bg-slate-950/80">
+        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+              SA
+            </div>
+            <div className="min-w-0 text-left">
+              <div className="text-xs font-bold text-white truncate">Super Admin</div>
+              <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span>Online</span>
+              </div>
+            </div>
           </div>
-          <span className="flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-          </span>
-        </div>
-        <p className="text-slate-400 text-[11px] leading-relaxed">
-          Sistem operasional Virtual Office & Private Office terintegrasi lintas kota.
-        </p>
-        <div className="mt-2 pt-2 border-t border-slate-800 flex items-center gap-1 text-[10px] text-slate-500">
-          <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-          <span>BOffice v4.0 • Coolify & Inforge Ready</span>
+          <Link
+            href="/login"
+            title="Keluar / Logout"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 border border-transparent hover:border-rose-900 transition-all shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+          </Link>
         </div>
       </div>
     </aside>

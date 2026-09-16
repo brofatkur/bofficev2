@@ -86,6 +86,8 @@ export interface MeetingBooking {
   branchId: string;
   roomId: string;
   customerId: string;
+  bookerName?: string;
+  bookerPhone?: string;
   title: string;
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
