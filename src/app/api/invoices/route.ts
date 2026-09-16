@@ -5,7 +5,7 @@ import { sendWhatsAppMessage } from '@/lib/kirimdev';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const branchId = searchParams.get('branchId') || undefined;
-  const invoices = getInvoices(branchId);
+  const invoices = await getInvoices(branchId);
   return NextResponse.json({ success: true, data: invoices });
 }
 
@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
       totalDiscountValue,
       totalTaxes,
       autoNotification,
+      resellerId,
+      commissionModel,
+      commissionRate,
+      bofficeNetPrice,
     } = body;
 
     if (!branchId || !customerId || !items || !items.length || !dueDate) {
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newInvoice = addInvoice({
+    const newInvoice = await addInvoice({
       branchId,
       customerId,
       contractId,
@@ -43,11 +47,15 @@ export async function POST(req: NextRequest) {
       totalDiscountValue: Number(totalDiscountValue || 0),
       totalTaxes: totalTaxes || [],
       autoNotification: autoNotification ?? true,
+      resellerId,
+      commissionModel,
+      commissionRate: commissionRate == null ? undefined : Number(commissionRate),
+      bofficeNetPrice: bofficeNetPrice == null ? undefined : Number(bofficeNetPrice),
     });
 
     // Send WhatsApp notification if autoNotification is enabled
     if (newInvoice.autoNotification) {
-      const customers = getCustomers();
+      const customers = await getCustomers();
       const customer = customers.find((c) => c.id === customerId);
       if (customer) {
         const msg =

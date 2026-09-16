@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getLeads, addLead, updateLead } from '@/lib/data-store';
 
 export async function GET() {
-  const leads = getLeads();
+  const leads = await getLeads();
   return NextResponse.json({ success: true, data: leads });
 }
 
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     if (!body.name || !body.companyName || !body.phone) {
       return NextResponse.json({ success: false, error: 'Nama, Perusahaan, dan WhatsApp wajib diisi' }, { status: 400 });
     }
-    const newLead = addLead(body);
+    const newLead = await addLead(body);
     return NextResponse.json({ success: true, data: newLead });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -26,7 +26,7 @@ export async function PUT(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ success: false, error: 'Lead ID required' }, { status: 400 });
     }
-    const updated = updateLead(id, updates);
+    const updated = await updateLead(id, updates);
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
     }

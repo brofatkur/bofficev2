@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Kode cabang required' }, { status: 400 });
   }
 
-  const branches = getBranches();
+  const branches = await getBranches();
   const branch = branches.find((b) => b.code.toUpperCase() === code);
 
   if (!branch) {

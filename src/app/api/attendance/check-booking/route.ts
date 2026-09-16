@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookingsForCheckin, getBranches, getMeetingRooms, getCustomers } from '@/lib/data-store';
+import { getBookingsForCheckin, getMeetingRooms, getCustomers } from '@/lib/data-store';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,27 +13,26 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const result = getBookingsForCheckin(branchId, phone);
-  const rooms = getMeetingRooms(branchId);
+  const allBookings = await getBookingsForCheckin(branchId, phone);
+  const rooms = await getMeetingRooms(branchId);
   const roomName = rooms.length > 0 ? rooms[0].name : 'Meeting Room Cabang';
+  const booking = allBookings.length > 0 ? allBookings[0] : null;
 
   let tenantName = '';
-  if (result.booking) {
-    const customers = getCustomers();
-    const c = customers.find((cust) => cust.id === result.booking?.customerId);
-    tenantName = c ? c.companyName : '';
-  } else if (result.customer) {
-    tenantName = result.customer.companyName;
+  if (booking) {
+    const customers = await getCustomers(branchId);
+    const c = customers.find((cust) => cust.id === booking.customerId);
+    tenantName = c ? c.companyName : (booking as any).bookerName || '';
   }
 
   return NextResponse.json({
     success: true,
     data: {
-      found: result.found,
-      booking: result.booking,
+      found: allBookings.length > 0,
+      booking,
       roomName,
       tenantName,
-      allBookings: result.allBookings,
+      allBookings,
     },
   });
 }

@@ -17,6 +17,9 @@ export interface Branch {
   status: 'active' | 'inactive';
   publicAttendanceUrl?: string;
   createdAt: string;
+  ownershipType?: 'independent' | 'cooperation';
+  propertyPartnerId?: string;
+  propertySharePercent?: number;
 }
 
 // Modul 2: Profil Data Penyewa (Tenant Profile)
@@ -36,6 +39,88 @@ export interface Customer {
   startDate: string;
   notes?: string;
   leadId?: string;
+  createdAt: string;
+  updatedAt: string;
+  userId?: string;
+  onboardingStatus?: 'not_invited' | 'invited' | 'active' | 'suspended';
+  profileCompletedAt?: string;
+}
+
+export type PartnerType = 'property' | 'reseller' | 'vendor';
+export type CommissionModel = 'percentage' | 'markup';
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Partner {
+  id: string;
+  code: string;
+  name: string;
+  partnerType: PartnerType;
+  contactName: string;
+  phone: string;
+  email: string;
+  address: string;
+  taxId?: string;
+  userId?: string;
+  commissionDefaultModel?: CommissionModel;
+  commissionDefaultRate?: number;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  categoryId: string;
+  name: string;
+  variantName?: string;
+  unit: string;
+  description?: string;
+  salePrice: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductVendorPrice {
+  id: string;
+  productId: string;
+  vendorId: string;
+  componentName: string;
+  serviceVariant?: string;
+  unitCost: number;
+  validFrom: string;
+  validUntil?: string;
+  notes?: string;
+  isPreferred: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface FinancialTransaction {
+  id: string;
+  branchId: string;
+  transactionDate: string;
+  direction: 'income' | 'expense';
+  category: string;
+  amount: number;
+  description: string;
+  sourceType: 'manual' | 'invoice_payment' | 'vendor_cost' | 'reseller_commission' | 'profit_share' | 'refund';
+  sourceId?: string;
+  partnerId?: string;
+  proofUrl?: string;
+  proofKey?: string;
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'void';
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -161,6 +246,14 @@ export interface InvoiceItem {
   taxPercent?: number;
   taxAmount: number;
   total: number;
+  productId?: string;
+  vendorPriceId?: string;
+  vendorId?: string;
+  estimatedHpp?: number;
+  actualHpp?: number;
+  grossProfit?: number;
+  marginPercent?: number;
+  costComponents?: Array<{ vendorPriceId?: string; vendorId?: string; componentName: string; serviceVariant?: string; estimatedCost: number; actualCost?: number; status?: string }>;
 }
 
 export interface TotalTaxItem {
@@ -204,6 +297,11 @@ export interface Invoice {
   lastWaSentAt?: string;
   payments: InvoicePayment[];
   createdAt: string;
+  resellerId?: string;
+  commissionModel?: CommissionModel;
+  commissionRate?: number;
+  bofficeNetPrice?: number;
+  resellerCommission?: number;
 }
 
 export interface WhatsAppLog {

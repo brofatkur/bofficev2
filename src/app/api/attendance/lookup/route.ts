@@ -9,8 +9,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Nomor HP required' }, { status: 400 });
   }
 
-  const attendee = getAttendeeByPhone(phone);
-  const activeLog = getActiveAttendanceByPhone(phone);
+  const attendee = await getAttendeeByPhone(phone);
+  const activeLog = await getActiveAttendanceByPhone(phone);
 
   return NextResponse.json({
     success: true,

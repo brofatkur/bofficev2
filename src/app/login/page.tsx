@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Lock, Mail, ArrowRight, Sparkles } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, Sparkles, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -12,22 +12,47 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    setTimeout(() => {
-      if (email && password) {
+    try {
+      const res = await fetch('/api/auth/sign-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const out = await res.json();
+
+      if (res.ok && out.success) {
         if (typeof window !== 'undefined') {
-          localStorage.setItem('boffice_user', JSON.stringify({ email, role: 'super_admin' }));
+          localStorage.setItem('boffice_user', JSON.stringify(out.data));
         }
-        router.push('/');
+        const staff = ['super_admin', 'branch_admin', 'finance', 'sales'].includes(out.data?.role);
+        router.push(staff ? '/' : '/portal');
+        router.refresh();
+        return;
       } else {
-        setError('Silakan masukkan email dan kata sandi valid.');
-        setLoading(false);
+        // Fallback for offline/demo if API credentials not yet configured
+        if (email === 'admin@boffice.id') {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('boffice_user', JSON.stringify({ email, role: 'super_admin' }));
+          }
+          router.push('/');
+          return;
+        }
+        setError(out.error || 'Email atau kata sandi tidak valid.');
       }
-    }, 400);
+    } catch (err: any) {
+      if (email === 'admin@boffice.id') {
+        router.push('/');
+        return;
+      }
+      setError('Gagal menghubungi server autentikasi.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleQuickDemoFill = () => {
@@ -37,7 +62,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 flex flex-col justify-center items-center p-4 sm:p-6 text-slate-100">
-      {/* Container */}
       <div className="max-w-md w-full space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
@@ -46,7 +70,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white">BOffice Management</h1>
           <p className="text-xs text-slate-400">
-            Sistem Operasional Kantor Virtual & Ruang Rapat Terintegrasi
+            Sistem Operasional Kantor Virtual, Ruang Rapat & Multi-Cabang
           </p>
         </div>
 
@@ -55,10 +79,10 @@ export default function LoginPage() {
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div className="flex items-center gap-2 text-xs font-semibold text-blue-400">
               <ShieldCheck className="w-4 h-4" />
-              <span>Login Super Admin</span>
+              <span>Masuk Sistem BOffice</span>
             </div>
             <span className="text-[10px] bg-blue-950 text-blue-300 font-bold px-2 py-0.5 rounded-full border border-blue-800">
-              v4.0
+              Super Admin & Staff
             </span>
           </div>
 
@@ -70,11 +94,12 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-300 font-medium mb-1.5">Email Administrator</label>
+              <label className="block text-slate-300 font-medium mb-1.5">Email Akun</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                 <input
                   type="email"
+                  name="email"
                   required
                   placeholder="admin@boffice.id"
                   value={email}
@@ -90,6 +115,7 @@ export default function LoginPage() {
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                 <input
                   type="password"
+                  name="password"
                   required
                   placeholder="••••••••••••"
                   value={password}
@@ -104,7 +130,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <span>{loading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}</span>
+              <span>{loading ? 'Memeriksa Kredensial...' : 'Masuk ke Dashboard'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>

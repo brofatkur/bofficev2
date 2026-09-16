@@ -25,6 +25,10 @@ export default function BranchesPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [partners, setPartners] = useState<any[]>([]);
+  const [editing, setEditing] = useState<any>(null);
 
   // QR Modal state
   const [qrModalBranch, setQrModalBranch] = useState<any | null>(null);
@@ -39,6 +43,9 @@ export default function BranchesPage() {
     city: '',
     address: '',
     phone: '',
+    ownershipType: 'independent',
+    propertyPartnerId: '',
+    propertySharePercent: 0,
   });
 
   const fetchBranches = async () => {
@@ -57,10 +64,13 @@ export default function BranchesPage() {
 
   useEffect(() => {
     fetchBranches();
+    fetch('/api/partners?type=property').then((res) => res.json()).then((data) => setPartners(data.data || []));
   }, []);
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
+    setError(null);
     try {
       const res = await fetch('/api/branches', {
         method: 'POST',
@@ -72,12 +82,14 @@ export default function BranchesPage() {
         setShowAddModal(false);
         setNotice(`Cabang baru "${data.data.name}" (${data.data.code}) berhasil ditambahkan beserta ruang meeting cabangnya!`);
         fetchBranches();
-        setForm({ code: '', name: '', city: '', address: '', phone: '' });
+        setForm({ code: '', name: '', city: '', address: '', phone: '', ownershipType: 'independent', propertyPartnerId: '', propertySharePercent: 0 });
       } else {
-        alert(`Gagal: ${data.error}`);
+        setError(typeof data.error === 'string' ? data.error : 'Cabang gagal disimpan. Periksa data lalu coba kembali.');
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      setError(err?.message || 'Tidak dapat terhubung ke server. Silakan coba kembali.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -253,6 +265,17 @@ export default function BranchesPage() {
     }, 300);
   };
 
+  const saveOwnership = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    const raw: any = Object.fromEntries(new FormData(e.currentTarget));
+    const res = await fetch('/api/branches', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editing.id, ownershipType: raw.ownershipType, propertyPartnerId: raw.ownershipType === 'cooperation' ? raw.propertyPartnerId : null, propertySharePercent: raw.ownershipType === 'cooperation' ? Number(raw.propertySharePercent) : 0 }) });
+    const data = await res.json();
+    setSaving(false);
+    if (data.success) { setEditing(null); setNotice('Pengaturan kepemilikan dan bagi hasil cabang berhasil disimpan.'); fetchBranches(); }
+    else setError(data.error || 'Pengaturan gagal disimpan.');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -264,7 +287,7 @@ export default function BranchesPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => { setError(null); setShowAddModal(true); }}
           className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -317,17 +340,16 @@ export default function BranchesPage() {
                     <h3 className="font-bold text-slate-900 text-base">{branch.name}</h3>
                   </div>
 
-                  <button
-                    onClick={() => handleToggleStatus(branch)}
-                    className={`p-2 rounded-xl border text-xs transition-all ${
-                      isActive
-                        ? 'text-slate-500 hover:text-rose-600 hover:bg-rose-50 border-slate-200'
-                        : 'text-emerald-600 hover:bg-emerald-50 border-emerald-200'
-                    }`}
-                    title={isActive ? 'Non-aktifkan cabang' : 'Aktifkan cabang'}
-                  >
-                    <Power className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-2"><button onClick={() => setEditing(branch)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-600" title="Atur jenis cabang"><Edit2 className="h-4 w-4" /></button><button
+                      onClick={() => handleToggleStatus(branch)}
+                      className={`p-2 rounded-xl border text-xs transition-all ${isActive ? 'text-slate-500 hover:text-rose-600 hover:bg-rose-50 border-slate-200' : 'text-emerald-600 hover:bg-emerald-50 border-emerald-200'}`}
+                      title={isActive ? 'Non-aktifkan cabang' : 'Aktifkan cabang'}
+                    ><Power className="w-4 h-4" /></button></div>
+                </div>
+
+                <div className={`rounded-xl border p-3 text-xs ${branch.ownershipType === 'cooperation' ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}>
+                  <div className="flex items-center justify-between"><strong>{branch.ownershipType === 'cooperation' ? 'Cabang kerja sama' : 'Cabang mandiri'}</strong>{branch.ownershipType === 'cooperation' && <span className="font-extrabold text-indigo-700">Mitra {Number(branch.propertySharePercent || 0)}%</span>}</div>
+                  {branch.ownershipType === 'cooperation' && <p className="mt-1 text-slate-500">{partners.find((p) => p.id === branch.propertyPartnerId)?.name || 'Mitra properti belum dipilih'}</p>}
                 </div>
 
                 <div className="space-y-2 text-xs text-slate-600">
@@ -376,6 +398,8 @@ export default function BranchesPage() {
         </div>
       )}
 
+      {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={saveOwnership} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><div><h3 className="font-extrabold">Pengaturan cabang</h3><p className="text-xs text-slate-500">{editing.name}</p></div><button type="button" onClick={() => setEditing(null)}><X className="h-5 w-5" /></button></div><label className="mt-5 block text-xs font-bold">Jenis cabang<select name="ownershipType" defaultValue={editing.ownershipType || 'independent'} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="independent">Mandiri — milik sendiri</option><option value="cooperation">Kerja sama — properti mitra</option></select></label><label className="mt-4 block text-xs font-bold">Mitra properti<select name="propertyPartnerId" defaultValue={editing.propertyPartnerId || ''} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="">Pilih mitra</option>{partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label className="mt-4 block text-xs font-bold">Bagian mitra (%)<input name="propertySharePercent" type="number" min="0" max="100" step="0.01" defaultValue={editing.propertySharePercent || 0} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><p className="mt-4 rounded-xl bg-indigo-50 p-3 text-[11px] text-indigo-800">Kas masuk tanpa PPN dikurangi HPP vendor, komisi reseller, refund, dan pengeluaran operasional yang disetujui.</p><button disabled={saving} className="mt-5 w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white">Simpan pengaturan</button></form></div>}
+
       {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -388,6 +412,12 @@ export default function BranchesPage() {
             </div>
 
             <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
+              {error && (
+                <div role="alert" className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 leading-relaxed">
+                  <strong className="block mb-0.5">Cabang belum tersimpan</strong>
+                  {error}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Kode Cabang *</label>
@@ -449,6 +479,9 @@ export default function BranchesPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3"><label className="font-semibold text-slate-700">Jenis Cabang<select value={form.ownershipType} onChange={(e) => setForm({ ...form, ownershipType: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"><option value="independent">Mandiri</option><option value="cooperation">Kerja sama</option></select></label>{form.ownershipType === 'cooperation' && <label className="font-semibold text-slate-700">Bagian Mitra (%)<input type="number" min="0" max="100" value={form.propertySharePercent} onChange={(e) => setForm({ ...form, propertySharePercent: Number(e.target.value) })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" /></label>}</div>
+              {form.ownershipType === 'cooperation' && <label className="block font-semibold text-slate-700">Mitra Properti<select value={form.propertyPartnerId} onChange={(e) => setForm({ ...form, propertyPartnerId: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"><option value="">Pilih mitra</option>{partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
+
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-[11px] text-blue-800 leading-relaxed">
                 💡 Sistem akan secara otomatis menginisialisasi 1 Ruang Meeting bawaan cabang dan tautan check-in publik <code className="font-bold">/attendance/{form.code || '[KODE]'}</code>.
               </div>
@@ -463,9 +496,10 @@ export default function BranchesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md shadow-blue-600/20"
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-wait text-white rounded-xl font-semibold shadow-md shadow-blue-600/20"
                 >
-                  Simpan Cabang
+                  {saving ? 'Menyimpan...' : 'Simpan Cabang'}
                 </button>
               </div>
             </form>
