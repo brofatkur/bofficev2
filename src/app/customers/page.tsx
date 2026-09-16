@@ -17,8 +17,14 @@ import {
   Clock,
   Check,
   Search,
+  UploadCloud,
+  Download,
+  FileUp,
+  FolderLock,
+  KeyRound,
 } from 'lucide-react';
 import Link from 'next/link';
+import { csvEscape, parseCsv, type CsvRow } from '@/lib/csv';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -34,6 +40,15 @@ export default function CustomersPage() {
 
   const [sendingWaId, setSendingWaId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importRows, setImportRows] = useState<CsvRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [activeCustomer, setActiveCustomer] = useState<any>(null);
+  const [customerDocs, setCustomerDocs] = useState<any[]>([]);
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteResult, setInviteResult] = useState<any>(null);
 
   // Add Customer / Contract Modal
   const [showModal, setShowModal] = useState(false);
@@ -86,13 +101,24 @@ export default function CustomersPage() {
     fetchData();
   }, []);
 
+  const downloadCustomerTemplate = () => {
+    const headers=['company_name','entity_type','service_type','branch_code','pic_name','phone','email','address','npwp','nib','status','start_date','notes'];
+    const example=['PT Contoh Bali','PT','virtual_office','DPS-DIP','Made Contoh','081234567890','made@contoh.co.id','Denpasar','','','calon_tenant','2026-09-16','Migrasi sistem lama'];
+    const content=[headers,example].map(row=>row.map(csvEscape).join(',')).join('\n');
+    const url=URL.createObjectURL(new Blob([`\uFEFF${content}`],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='template-import-customer-boffice.csv';a.click();URL.revokeObjectURL(url);
+  };
+  const importCustomers=async()=>{setImporting(true);const res=await fetch('/api/customers/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:importRows})});const out=await res.json();setImporting(false);setImportResult(out.data||{errors:[{message:out.error}]});if(out.data?.imported){setNotice(`${out.data.imported} customer berhasil diimpor.`);fetchData()}};
+  const openDocuments=async(customer:any)=>{setActiveCustomer(customer);setShowDocuments(true);const out=await fetch(`/api/customer-documents?customerId=${customer.id}`).then(r=>r.json());setCustomerDocs(out.data||[])};
+  const uploadDocument=async(e:React.FormEvent<HTMLFormElement>)=>{e.preventDefault();const formData=new FormData(e.currentTarget);formData.set('customerId',activeCustomer.id);const res=await fetch('/api/customer-documents',{method:'POST',body:formData});const out=await res.json();if(!res.ok){setNotice(out.error);return}setCustomerDocs([out.data,...customerDocs]);setNotice('Dokumen customer berhasil diunggah.');e.currentTarget.reset()};
+  const sendInvite=async(e:React.FormEvent<HTMLFormElement>)=>{e.preventDefault();const raw=Object.fromEntries(new FormData(e.currentTarget));const res=await fetch('/api/invitations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...raw,role:'customer',customerId:activeCustomer.id,fullName:activeCustomer.picName,email:activeCustomer.email,phone:activeCustomer.phone})});const out=await res.json();setInviteResult(out.data||{error:out.error});if(out.success)fetchData()};
+
   const handleVerifyTenant = async (customer: any) => {
     try {
       const res = await fetch('/api/customers', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...customer,
+          id: customer.id,
           status: 'aktif',
         }),
       });
@@ -215,12 +241,13 @@ export default function CustomersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Profil Data Penyewa (Tenant BOffice)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Manajemen Customer</h1>
           <p className="text-xs text-slate-500 mt-1">
             Database induk penyewa Virtual Office & Private Office lintas cabang, status verifikasi, dan manajemen siklus kontrak.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={()=>setShowImportModal(true)} className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 flex items-center gap-1.5"><UploadCloud className="h-4 w-4"/>Import massal</button>
           <Link
             href="/register"
             target="_blank"
@@ -233,7 +260,7 @@ export default function CustomersPage() {
             className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span>Tambah Tenant Baru</span>
+            <span>Tambah Customer</span>
           </button>
         </div>
       </div>
@@ -376,6 +403,11 @@ export default function CustomersPage() {
                   )}
                 </div>
 
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={()=>openDocuments(customer)} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"><FolderLock className="h-3.5 w-3.5 text-blue-600"/>Dokumen persyaratan</button>
+                  <button onClick={()=>{setActiveCustomer(customer);setInviteResult(null);setShowInvite(true)}} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50"><KeyRound className="h-3.5 w-3.5 text-indigo-600"/>{customer.userId?'Akun portal aktif':'Undang ke portal'}</button>
+                </div>
+
                 {/* Contracts List */}
                 <div className="space-y-2.5">
                   <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -440,6 +472,23 @@ export default function CustomersPage() {
       )}
 
       {/* Add Modal */}
+      {showDocuments&&activeCustomer&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><div><h3 className="font-extrabold">Dokumen {activeCustomer.companyName}</h3><p className="text-xs text-slate-500">PDF/JPG/PNG/WebP, maksimal 10 MB per file.</p></div><button onClick={()=>setShowDocuments(false)}><X className="h-5 w-5"/></button></div><form onSubmit={uploadDocument} className="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-[1fr_1fr_auto]"><select name="documentType" className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="ktp">KTP</option><option value="passport">Paspor</option><option value="nib">NIB</option><option value="npwp">NPWP</option><option value="sk_ahu">SK AHU</option><option value="akta_notaris">Akta Notaris</option><option value="other">Dokumen lain</option></select><input name="file" type="file" accept=".pdf,image/jpeg,image/png,image/webp" required className="text-xs"/><button className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white">Unggah</button></form><div className="mt-4 max-h-72 space-y-2 overflow-y-auto">{customerDocs.map(doc=><div key={doc.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-xs"><div><strong>{doc.fileName}</strong><p className="text-slate-400">{String(doc.documentType).toUpperCase()} • {(Number(doc.fileSize)/1024).toFixed(0)} KB</p></div><span className={`rounded-full px-2 py-1 font-bold ${doc.status==='approved'?'bg-emerald-50 text-emerald-700':doc.status==='rejected'?'bg-rose-50 text-rose-700':'bg-amber-50 text-amber-700'}`}>{doc.status}</span></div>)}{!customerDocs.length&&<p className="p-8 text-center text-xs text-slate-400">Belum ada dokumen.</p>}</div></div></div>}
+
+      {showInvite&&activeCustomer&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={sendInvite} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><div><h3 className="font-extrabold">Undang customer ke portal</h3><p className="text-xs text-slate-500">Tautan berlaku 24 jam dan password dibuat sendiri.</p></div><button type="button" onClick={()=>setShowInvite(false)}><X className="h-5 w-5"/></button></div><div className="mt-5 rounded-xl bg-slate-50 p-3 text-xs"><strong>{activeCustomer.picName}</strong><p>{activeCustomer.email||'Email belum diisi'} • {activeCustomer.phone}</p></div><label className="mt-4 block text-xs font-bold">Kirim melalui<select name="channel" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="link">Buat tautan saja</option></select></label>{inviteResult&&<div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">{inviteResult.error||<>Undangan dibuat melalui {inviteResult.delivery}.<input readOnly value={inviteResult.inviteUrl} className="mt-2 w-full rounded-lg border px-2 py-1.5"/></>}</div>}<button disabled={!activeCustomer.email} className="mt-5 w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-40">Buat dan kirim undangan</button></form></div>}
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between"><div><h3 className="font-extrabold">Import massal customer</h3><p className="text-xs text-slate-500">Duplikat nomor telepon atau NIB akan dilewati.</p></div><button onClick={()=>setShowImportModal(false)}><X className="h-5 w-5"/></button></div>
+            <button onClick={downloadCustomerTemplate} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold"><Download className="h-4 w-4"/>Unduh template CSV</button>
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center hover:border-blue-400"><FileUp className="mb-2 h-7 w-7 text-blue-600"/><span className="text-sm font-bold">Pilih file CSV</span><span className="text-xs text-slate-400">Data ditampilkan dahulu sebelum disimpan</span><input type="file" accept=".csv,text/csv" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(f){setImportRows(parseCsv(await f.text()));setImportResult(null)}}}/></label>
+            {importRows.length>0&&<div className="rounded-xl bg-slate-50 p-3 text-xs"><strong>{importRows.length} baris siap diimpor</strong><p className="text-slate-500">Contoh: {String(importRows[0]?.company_name||'-')}</p></div>}
+            {importResult&&<div className="rounded-xl border border-slate-200 p-3 text-xs"><p><strong>{importResult.imported||0}</strong> berhasil, <strong>{importResult.skipped||0}</strong> duplikat, <strong>{importResult.errors?.length||0}</strong> gagal.</p>{importResult.errors?.slice(0,5).map((x:any,i:number)=><p key={i} className="mt-1 text-rose-600">Baris {x.row||'-'}: {x.message}</p>)}</div>}
+            <button disabled={!importRows.length||importing} onClick={importCustomers} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-40">{importing?'Mengimpor...':'Import customer'}</button>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">

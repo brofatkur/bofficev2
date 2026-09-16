@@ -10,6 +10,9 @@ import {
   Users,
   FileText,
   Settings,
+  PackageSearch,
+  Handshake,
+  Landmark,
   ShieldCheck,
   UserPlus,
   QrCode,
@@ -18,10 +21,13 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Manajemen Cabang', href: '/branches', icon: GitFork, badge: 'Multi-Kota' },
-  { name: 'Profil Data Penyewa', href: '/customers', icon: Users },
+  { name: 'Manajemen Customer', href: '/customers', icon: Users },
+  { name: 'Manajemen Produk', href: '/products', icon: PackageSearch },
+  { name: 'Manajemen Mitra', href: '/partners', icon: Handshake },
   { name: 'Booking Ruang Meeting', href: '/meeting-rooms', icon: CalendarDays },
   { name: 'Katalog Kantor & VO', href: '/offices', icon: Building2 },
   { name: 'Invoice & Penagihan', href: '/invoices', icon: FileText },
+  { name: 'Manajemen Keuangan', href: '/finance', icon: Landmark },
   { name: 'WhatsApp & Settings', href: '/settings', icon: Settings },
 ];
 

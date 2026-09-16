@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
       totalDiscountValue,
       totalTaxes,
       autoNotification,
+      resellerId,
+      commissionModel,
+      commissionRate,
+      bofficeNetPrice,
     } = body;
 
     if (!branchId || !customerId || !items || !items.length || !dueDate) {
@@ -43,6 +47,10 @@ export async function POST(req: NextRequest) {
       totalDiscountValue: Number(totalDiscountValue || 0),
       totalTaxes: totalTaxes || [],
       autoNotification: autoNotification ?? true,
+      resellerId,
+      commissionModel,
+      commissionRate: commissionRate == null ? undefined : Number(commissionRate),
+      bofficeNetPrice: bofficeNetPrice == null ? undefined : Number(bofficeNetPrice),
     });
 
     // Send WhatsApp notification if autoNotification is enabled

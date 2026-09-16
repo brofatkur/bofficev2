@@ -28,6 +28,9 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [vendorPrices, setVendorPrices] = useState<any[]>([]);
+  const [resellers, setResellers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -67,6 +70,10 @@ export default function InvoicesPage() {
     totalDiscountValue: 0,
     totalTaxName: 'PPN 11%',
     totalTaxPercent: 0,
+    resellerId: '',
+    commissionModel: 'percentage',
+    commissionRate: 15,
+    bofficeNetPrice: 0,
   });
 
   const [invoiceItems, setInvoiceItems] = useState<any[]>([
@@ -79,6 +86,11 @@ export default function InvoicesPage() {
       discountValue: 0,
       taxName: 'PPN',
       taxPercent: 11,
+      productId: '',
+      vendorPriceId: '',
+      vendorId: '',
+      estimatedHpp: 0,
+      costComponents: [],
     },
   ]);
 
@@ -141,14 +153,19 @@ export default function InvoicesPage() {
 
   const fetchData = async () => {
     try {
-      const [invRes, cusRes, bRes] = await Promise.all([
+      const [invRes, cusRes, bRes, prodRes, resellerRes] = await Promise.all([
         fetch('/api/invoices').then((r) => r.json()),
         fetch('/api/customers').then((r) => r.json()),
         fetch('/api/branches').then((r) => r.json()),
+        fetch('/api/products').then((r) => r.json()),
+        fetch('/api/partners?type=reseller').then((r) => r.json()),
       ]);
       setInvoices(invRes.data || []);
       setCustomers(cusRes.data || []);
       setBranches(bRes.data || []);
+      setProducts(prodRes.data?.products || []);
+      setVendorPrices(prodRes.data?.vendorPrices || []);
+      setResellers(resellerRes.data || []);
 
       if (bRes.data?.length) {
         setNewInvoiceForm((f) => ({ ...f, branchId: bRes.data[0].id }));
@@ -179,6 +196,7 @@ export default function InvoicesPage() {
         discountValue: 0,
         taxName: 'PPN',
         taxPercent: 0,
+        productId: '', vendorPriceId: '', vendorId: '', estimatedHpp: 0, costComponents: [],
       },
     ]);
   };
@@ -209,6 +227,10 @@ export default function InvoicesPage() {
           totalDiscountValue: Number(newInvoiceForm.totalDiscountValue || 0),
           totalTaxes,
           autoNotification: newInvoiceForm.autoNotification,
+          resellerId: newInvoiceForm.resellerId || undefined,
+          commissionModel: newInvoiceForm.resellerId ? newInvoiceForm.commissionModel : undefined,
+          commissionRate: newInvoiceForm.commissionModel === 'percentage' ? Number(newInvoiceForm.commissionRate) : undefined,
+          bofficeNetPrice: newInvoiceForm.commissionModel === 'markup' ? Number(newInvoiceForm.bofficeNetPrice) : undefined,
         }),
       });
 
@@ -1028,6 +1050,11 @@ export default function InvoicesPage() {
                 </div>
               </div>
 
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-3">
+                <label className="block font-semibold text-slate-700">Reseller / Agent (opsional)<select value={newInvoiceForm.resellerId} onChange={(e)=>setNewInvoiceForm({...newInvoiceForm,resellerId:e.target.value})} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="">Tanpa reseller</option>{resellers.map((r)=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+                {newInvoiceForm.resellerId&&<div className="grid grid-cols-2 gap-3"><label className="font-semibold text-slate-700">Model komisi<select value={newInvoiceForm.commissionModel} onChange={(e)=>setNewInvoiceForm({...newInvoiceForm,commissionModel:e.target.value})} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="percentage">Persentase</option><option value="markup">Markup harga</option></select></label>{newInvoiceForm.commissionModel==='percentage'?<label className="font-semibold text-slate-700">Komisi (%)<input type="number" min="0" max="100" value={newInvoiceForm.commissionRate} onChange={(e)=>setNewInvoiceForm({...newInvoiceForm,commissionRate:Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"/></label>:<label className="font-semibold text-slate-700">Harga bersih BOffice<input type="number" min="0" value={newInvoiceForm.bofficeNetPrice} onChange={(e)=>setNewInvoiceForm({...newInvoiceForm,bofficeNetPrice:Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"/></label>}</div>}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Tanggal Terbit *</label>
@@ -1079,6 +1106,8 @@ export default function InvoicesPage() {
                         </button>
                       )}
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2"><label className="text-[10px] font-bold text-slate-500">Produk katalog<select value={item.productId||''} onChange={(e)=>{const product=products.find(p=>p.id===e.target.value);const all=vendorPrices.filter(v=>v.productId===e.target.value);const groups=Array.from(new Set(all.map(v=>v.componentName)));const chosen=groups.map(name=>all.find(v=>v.componentName===name&&v.isPreferred)||all.find(v=>v.componentName===name)).filter(Boolean);const costComponents=chosen.map((v:any)=>({vendorPriceId:v.id,vendorId:v.vendorId,componentName:v.componentName,serviceVariant:v.serviceVariant,estimatedCost:Number(v.unitCost),status:'estimated'}));const updated=[...invoiceItems];updated[idx]={...updated[idx],productId:e.target.value,description:product?`${product.name}${product.variantName?` — ${product.variantName}`:''}`:updated[idx].description,amount:product?Number(product.salePrice):updated[idx].amount,vendorPriceId:chosen[0]?.id||'',vendorId:chosen[0]?.vendorId||'',costComponents,estimatedHpp:costComponents.reduce((sum:number,c:any)=>sum+c.estimatedCost,0)};setInvoiceItems(updated)}} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"><option value="">Item manual</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} {p.variantName||''}</option>)}</select></label><label className="text-[10px] font-bold text-slate-500">Vendor komponen utama<select value={item.vendorPriceId||''} onChange={(e)=>{const cost=vendorPrices.find(v=>v.id===e.target.value);const existing=(item.costComponents||[]).filter((c:any)=>c.componentName!==cost?.componentName);const costComponents=cost?[...existing,{vendorPriceId:cost.id,vendorId:cost.vendorId,componentName:cost.componentName,serviceVariant:cost.serviceVariant,estimatedCost:Number(cost.unitCost),status:'estimated'}]:existing;const updated=[...invoiceItems];updated[idx]={...updated[idx],vendorPriceId:e.target.value,vendorId:cost?.vendorId||'',costComponents,estimatedHpp:costComponents.reduce((sum:number,c:any)=>sum+Number(c.estimatedCost),0)};setInvoiceItems(updated)}} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"><option value="">Pilih per komponen</option>{vendorPrices.filter(v=>!item.productId||v.productId===item.productId).map(v=><option key={v.id} value={v.id}>{v.componentName} {v.serviceVariant||''} — Rp {Number(v.unitCost).toLocaleString('id-ID')}</option>)}</select></label></div>
 
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-2">
@@ -1168,6 +1197,7 @@ export default function InvoicesPage() {
                         />
                       </div>
                     </div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] text-emerald-800"><strong>Estimasi HPP:</strong> Rp {Number(item.estimatedHpp||0).toLocaleString('id-ID')} • <strong>Profit kotor:</strong> Rp {Math.max(0,Number(item.amount||0)*Number(item.quantity||1)-Number(item.estimatedHpp||0)*Number(item.quantity||1)-Number(item.discountValue||0)).toLocaleString('id-ID')}</div>
                   </div>
                 ))}
               </div>
