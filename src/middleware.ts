@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createServerClient } from '@insforge/sdk/ssr';
 import { updateSession } from '@insforge/sdk/ssr/middleware';
 
 export async function middleware(request: NextRequest) {
@@ -14,9 +13,8 @@ export async function middleware(request: NextRequest) {
 
   if (publicApi || (publicPage && path !== '/login')) return response;
 
-  const client = createServerClient({ cookies: request.cookies });
-  const { data: userData } = await client.auth.getCurrentUser();
-  if (!userData?.user) {
+  const accessToken = request.cookies.get('insforge_access_token')?.value;
+  if (!accessToken) {
     if (path.startsWith('/api/')) return NextResponse.json({ success: false, error: 'Sesi tidak aktif.' }, { status: 401 });
     if (path === '/login') return response;
     const loginUrl = request.nextUrl.clone();
@@ -25,8 +23,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const { data: roleRows } = await client.database.from('user_roles').select('role').eq('user_id', userData.user.id).eq('is_active', true).limit(1);
-  const role = (roleRows?.[0] as any)?.role as string | undefined;
+  let role:string|undefined;
+  try {
+    const baseUrl=process.env.NEXT_PUBLIC_INSFORGE_URL;
+    const roleResponse=await fetch(`${baseUrl}/api/database/records/user_roles?select=role&is_active=eq.true&limit=1`,{headers:{Authorization:`Bearer ${accessToken}`}});
+    const roleRows=roleResponse.ok?await roleResponse.json():[];
+    role=roleRows?.[0]?.role;
+  } catch {}
   const staffRoles = ['super_admin', 'branch_admin', 'finance', 'sales'];
   const portalRoles = ['customer', 'reseller', 'property_partner'];
 
