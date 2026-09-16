@@ -35,6 +35,6 @@ export async function PUT(req:NextRequest){
   for(const key of ['company_name','entity_type','pic_name','phone','email','address','npwp','nib','notes'])if(key in body)updates[key]=body[key];
   updates.profile_completed_at=new Date().toISOString();
   const {data,error}=await client.database.from('customers').update(updates).eq('id',role.customer_id).select().maybeSingle();
-  if(error)return NextResponse.json({success:false,error:error.message},{status:error.statusCode||400});
+  if(error)return NextResponse.json({success:false,error:error.message},{status:400});
   return NextResponse.json({success:true,data});
 }
