@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@insforge/sdk/ssr';
 
@@ -21,4 +21,20 @@ export async function GET(){
     payload={...payload,partner:partner.data,branches:branches.data||[],transactions:transactions.data||[],shares:shares.data||[]};
   }
   return NextResponse.json({success:true,data:payload});
+}
+
+export async function PUT(req:NextRequest){
+  const client=createServerClient({cookies:cookies()});
+  const {data:userData}=await client.auth.getCurrentUser();
+  if(!userData?.user)return NextResponse.json({success:false,error:'Sesi tidak aktif.'},{status:401});
+  const {data:roleRows}=await client.database.from('user_roles').select().eq('user_id',userData.user.id).limit(1);
+  const role:any=roleRows?.[0];
+  if(role?.role!=='customer'||!role.customer_id)return NextResponse.json({success:false,error:'Hanya customer yang dapat memperbarui profil.'},{status:403});
+  const body=await req.json();
+  const updates:any={};
+  for(const key of ['company_name','entity_type','pic_name','phone','email','address','npwp','nib','notes'])if(key in body)updates[key]=body[key];
+  updates.profile_completed_at=new Date().toISOString();
+  const {data,error}=await client.database.from('customers').update(updates).eq('id',role.customer_id).select().maybeSingle();
+  if(error)return NextResponse.json({success:false,error:error.message},{status:error.statusCode||400});
+  return NextResponse.json({success:true,data});
 }
