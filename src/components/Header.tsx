@@ -72,7 +72,7 @@ export default function Header() {
           </div>
           <div className="text-left text-xs hidden sm:block">
             <div className="font-bold text-slate-800">Super Admin</div>
-            <div className="text-slate-400">admin@boffice.id</div>
+            <div className="text-slate-400">pusat@boffice.co.id</div>
           </div>
         </div>
       </div>
