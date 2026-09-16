@@ -69,6 +69,7 @@ export default function CustomersPage() {
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().split('T')[0],
     rentPrice: 6000000,
+    notes: '',
   });
 
   const fetchData = async () => {
@@ -102,10 +103,47 @@ export default function CustomersPage() {
   }, []);
 
   const downloadCustomerTemplate = () => {
-    const headers=['company_name','entity_type','service_type','branch_code','pic_name','phone','email','address','npwp','nib','status','start_date','notes'];
-    const example=['PT Contoh Bali','PT','virtual_office','DPS-DIP','Made Contoh','081234567890','made@contoh.co.id','Denpasar','','','calon_tenant','2026-09-16','Migrasi sistem lama'];
-    const content=[headers,example].map(row=>row.map(csvEscape).join(',')).join('\n');
-    const url=URL.createObjectURL(new Blob([`\uFEFF${content}`],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='template-import-customer-boffice.csv';a.click();URL.revokeObjectURL(url);
+    const headers = [
+      'company_name',
+      'entity_type',
+      'service_type',
+      'branch_code',
+      'pic_name',
+      'phone',
+      'email',
+      'address',
+      'npwp',
+      'nib',
+      'status',
+      'start_date',
+      'end_date',
+      'rent_price',
+      'notes',
+    ];
+    const example = [
+      'PT Contoh Bali Solusi',
+      'PT',
+      'virtual_office',
+      'DPS-DIP',
+      'Made Arya',
+      '081234567890',
+      'made@contoh.co.id',
+      'Jl. Diponegoro No. 45, Denpasar',
+      '01.234.567.8-901.000',
+      '1234567890123',
+      'aktif',
+      '2026-09-16',
+      '2027-09-15',
+      '4500000',
+      'Migrasi sistem lama / Penyewa aktif',
+    ];
+    const content = [headers, example].map((row) => row.map(csvEscape).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template-import-customer-boffice.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
   const importCustomers=async()=>{setImporting(true);const res=await fetch('/api/customers/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:importRows})});const out=await res.json();setImporting(false);setImportResult(out.data||{errors:[{message:out.error}]});if(out.data?.imported){setNotice(`${out.data.imported} customer berhasil diimpor.`);fetchData()}};
   const openDocuments=async(customer:any)=>{setActiveCustomer(customer);setShowDocuments(true);const out=await fetch(`/api/customer-documents?customerId=${customer.id}`).then(r=>r.json());setCustomerDocs(out.data||[])};
@@ -197,6 +235,8 @@ export default function CustomersPage() {
           nib: form.nib,
           status: 'aktif',
           startDate: form.startDate,
+          endDate: form.endDate,
+          notes: form.notes,
         }),
       });
       const cusData = await cusRes.json();
@@ -479,12 +519,12 @@ export default function CustomersPage() {
       {showImportModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between"><div><h3 className="font-extrabold">Import massal customer</h3><p className="text-xs text-slate-500">Duplikat nomor telepon atau NIB akan dilewati.</p></div><button onClick={()=>setShowImportModal(false)}><X className="h-5 w-5"/></button></div>
-            <button onClick={downloadCustomerTemplate} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold"><Download className="h-4 w-4"/>Unduh template CSV</button>
+            <div className="flex items-center justify-between"><div><h3 className="font-extrabold">Import massal customer & kontrak</h3><p className="text-xs text-slate-500">Mencakup data tenant, cabang, masa sewa (tgl mulai & tgl berakhir kontrak), serta nilai sewa.</p></div><button onClick={()=>setShowImportModal(false)}><X className="h-5 w-5"/></button></div>
+            <button onClick={downloadCustomerTemplate} className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 px-3 py-2 text-xs font-bold text-blue-700 transition-all"><Download className="h-4 w-4"/>Unduh template CSV (Lengkap dengan Tgl Berakhir Kontrak)</button>
             <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center hover:border-blue-400"><FileUp className="mb-2 h-7 w-7 text-blue-600"/><span className="text-sm font-bold">Pilih file CSV</span><span className="text-xs text-slate-400">Data ditampilkan dahulu sebelum disimpan</span><input type="file" accept=".csv,text/csv" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(f){setImportRows(parseCsv(await f.text()));setImportResult(null)}}}/></label>
-            {importRows.length>0&&<div className="rounded-xl bg-slate-50 p-3 text-xs"><strong>{importRows.length} baris siap diimpor</strong><p className="text-slate-500">Contoh: {String(importRows[0]?.company_name||'-')}</p></div>}
+            {importRows.length>0&&<div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs space-y-1"><strong>{importRows.length} baris siap diimpor</strong><p className="text-slate-600">Perusahaan: <strong>{String(importRows[0]?.company_name||importRows[0]?.nama_perusahaan||'-')}</strong></p><p className="text-slate-500">Masa Sewa: {String(importRows[0]?.start_date||importRows[0]?.tgl_mulai||'-')} s/d {String(importRows[0]?.end_date||importRows[0]?.tgl_berakhir||'Otomatis 1 Thn')}</p></div>}
             {importResult&&<div className="rounded-xl border border-slate-200 p-3 text-xs"><p><strong>{importResult.imported||0}</strong> berhasil, <strong>{importResult.skipped||0}</strong> duplikat, <strong>{importResult.errors?.length||0}</strong> gagal.</p>{importResult.errors?.slice(0,5).map((x:any,i:number)=><p key={i} className="mt-1 text-rose-600">Baris {x.row||'-'}: {x.message}</p>)}</div>}
-            <button disabled={!importRows.length||importing} onClick={importCustomers} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-40">{importing?'Mengimpor...':'Import customer'}</button>
+            <button disabled={!importRows.length||importing} onClick={importCustomers} className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 py-3 text-sm font-bold text-white disabled:opacity-40">{importing?'Mengimpor...':'Import customer'}</button>
           </div>
         </div>
       )}

@@ -37,6 +37,7 @@ export interface Customer {
   nib?: string;
   status: TenantStatus;
   startDate: string;
+  endDate?: string;
   notes?: string;
   leadId?: string;
   createdAt: string;
