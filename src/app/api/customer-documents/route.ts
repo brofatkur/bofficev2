@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 async function documentAccess(customerId:string){
-  const client=createServerClient({cookies:cookies()});
+  const client=createServerClient({cookies:await cookies()});
   const {data:userData}=await client.auth.getCurrentUser();
   if(!userData?.user)return {allowed:false,staff:false};
   const {data:roles}=await client.database.from('user_roles').select().eq('user_id',userData.user.id).eq('is_active',true).limit(1);

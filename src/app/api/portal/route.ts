@@ -4,7 +4,7 @@ import { createServerClient } from '@insforge/sdk/ssr';
 
 export const dynamic='force-dynamic';
 export async function GET(){
-  const client=createServerClient({cookies:cookies()});
+  const client=createServerClient({cookies:await cookies()});
   const {data:userData,error:userError}=await client.auth.getCurrentUser();
   if(userError||!userData?.user)return NextResponse.json({success:false,error:'Sesi tidak aktif.'},{status:401});
   const {data:roleRows,error:roleError}=await client.database.from('user_roles').select().eq('user_id',userData.user.id).limit(1);
@@ -24,7 +24,7 @@ export async function GET(){
 }
 
 export async function PUT(req:NextRequest){
-  const client=createServerClient({cookies:cookies()});
+  const client=createServerClient({cookies:await cookies()});
   const {data:userData}=await client.auth.getCurrentUser();
   if(!userData?.user)return NextResponse.json({success:false,error:'Sesi tidak aktif.'},{status:401});
   const {data:roleRows}=await client.database.from('user_roles').select().eq('user_id',userData.user.id).limit(1);
