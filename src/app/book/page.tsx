@@ -141,18 +141,26 @@ function BookingFormInner() {
   const selectedBranchObj = branches.find((b) => b.id === form.branchId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-sky-50/50 to-blue-50/70 text-slate-900 flex flex-col justify-center items-center p-4 selection:bg-blue-600 selection:text-white">
-      <div className="max-w-xl w-full bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-200/60 space-y-6 relative overflow-hidden">
+    <div
+      className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-4 selection:bg-blue-600 selection:text-white"
+      style={{ backgroundColor: '#f1f5f9', color: '#0f172a' }}
+    >
+      <div
+        className="max-w-xl w-full bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-300/60 space-y-6 relative overflow-hidden"
+        style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+      >
         <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-emerald-500 to-teal-400" />
 
         {/* Logo & Header */}
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-1">
-            <img
-              src="/logo.webp"
-              alt="BOffice Logo"
-              className="h-12 w-auto object-contain"
-            />
+            <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-100 inline-flex items-center justify-center">
+              <img
+                src="/logo.webp"
+                alt="BOffice Logo"
+                className="h-12 w-auto object-contain"
+              />
+            </div>
           </div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
             <Sparkles className="w-3.5 h-3.5" />
