@@ -17,8 +17,8 @@ export default function AttendanceIndexPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4">
-      <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-sky-50/50 to-blue-50/70 text-slate-900 flex flex-col justify-center items-center p-4 selection:bg-blue-600 selection:text-white">
+      <div className="max-w-md w-full bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-slate-200/60 space-y-6 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-emerald-500 to-teal-400" />
 
         <div className="text-center space-y-2">
@@ -26,15 +26,15 @@ export default function AttendanceIndexPage() {
             <img
               src="/logo.webp"
               alt="BOffice Logo"
-              className="h-10 w-auto object-contain brightness-110"
+              className="h-12 w-auto object-contain"
             />
           </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Portal Publik Daftar Hadir</span>
           </div>
-          <h1 className="text-xl font-extrabold text-white tracking-wide">Pilih Cabang BOffice</h1>
-          <p className="text-slate-400 text-xs">
+          <h1 className="text-xl font-black text-slate-900 tracking-tight">Pilih Cabang BOffice</h1>
+          <p className="text-slate-500 text-xs">
             Silakan pilih lokasi cabang tempat Anda sedang menggunakan ruang meeting.
           </p>
         </div>
@@ -49,28 +49,28 @@ export default function AttendanceIndexPage() {
               <Link
                 key={b.id}
                 href={`/attendance/${b.code}`}
-                className="flex items-center justify-between p-4 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-blue-500 rounded-2xl transition-all group shadow-sm"
+                className="flex items-center justify-between p-4 bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-400 rounded-2xl transition-all group shadow-sm"
               >
                 <div className="space-y-1 text-left">
-                  <div className="font-bold text-sm text-white group-hover:text-blue-400 flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-blue-400" />
+                  <div className="font-bold text-sm text-slate-900 group-hover:text-blue-600 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-blue-600" />
                     <span>{b.name}</span>
-                    <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono font-normal">
+                    <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono font-semibold">
                       {b.code}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-slate-500" />
+                  <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-slate-400" />
                     <span>{b.city} • {b.address}</span>
                   </div>
                 </div>
-                <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" />
+                <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all shrink-0 ml-2" />
               </Link>
             ))}
           </div>
         )}
 
-        <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-500 text-center leading-relaxed">
+        <div className="pt-3 border-t border-slate-200 text-[11px] text-slate-500 text-center leading-relaxed">
           💡 Setiap cabang memiliki tautan langsung atau QR Code tersendiri untuk check-in instan.
         </div>
       </div>

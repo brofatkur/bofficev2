@@ -22,9 +22,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     pathname === '/login' ||
     pathname.startsWith('/invite');
 
-  // For public pages, immediately render standalone full-screen content
+  // For public pages, immediately render standalone full-screen content with bright background
   if (isPublicPage) {
-    return <main className="min-h-screen w-full bg-slate-950 text-slate-100">{children}</main>;
+    return <main className="min-h-screen w-full bg-slate-50 text-slate-900">{children}</main>;
   }
 
   // Client safety fallback in case pathname is lagging during client routing
@@ -38,7 +38,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       loc === '/login' ||
       loc.startsWith('/invite')
     ) {
-      return <main className="min-h-screen w-full bg-slate-950 text-slate-100">{children}</main>;
+      return <main className="min-h-screen w-full bg-slate-50 text-slate-900">{children}</main>;
     }
   }
 
