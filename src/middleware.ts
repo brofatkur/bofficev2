@@ -9,6 +9,7 @@ export async function middleware(request: NextRequest) {
   const publicPage = path === '/login' || path === '/register' || path === '/book' || path.startsWith('/attendance') || path.startsWith('/invite/');
   const publicApi = path.startsWith('/api/auth/') || path.startsWith('/api/attendance') || path.startsWith('/api/branches/qrcode') || path === '/api/invitations/accept'
     || (path === '/api/branches' && request.method === 'GET')
+    || (path === '/api/meeting-rooms' && request.method === 'GET')
     || (path === '/api/customers' && request.method === 'POST')
     || (path === '/api/bookings/availability' && request.method === 'GET')
     || (path === '/api/bookings/tenant-search' && request.method === 'GET')
