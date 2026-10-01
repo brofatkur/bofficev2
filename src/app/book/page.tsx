@@ -1,443 +1,141 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import {
-  CalendarDays,
-  Clock,
-  Building2,
-  Phone,
-  UserCheck,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  ArrowRight,
-  Sparkles,
-  MapPin,
-  QrCode,
-  ExternalLink,
-} from 'lucide-react';
+import { AlertCircle, ArrowRight, Building2, CalendarDays, CheckCircle2, Clock, MapPin, Phone, RefreshCw, UserCheck, Users } from 'lucide-react';
+
+type BookingBlock = { id: string; startTime: string; endTime: string; status: string };
+type Availability = { room: { id: string; name: string }; bookings: BookingBlock[] };
+const OPEN_MINUTES = 8 * 60, CLOSE_MINUTES = 20 * 60, STEP_MINUTES = 30;
+const DURATIONS = [30, 60, 90, 120];
+const toMinutes = (time: string) => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
+const toTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+const overlaps = (start: number, end: number, booking: BookingBlock) => start < toMinutes(booking.endTime) && end > toMinutes(booking.startTime);
+const todayInBali = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
 
 function BookingFormInner() {
   const searchParams = useSearchParams();
-  const branchParam = searchParams.get('branch');
-
   const [branches, setBranches] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
+  const [availability, setAvailability] = useState<Availability | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Success State
   const [confirmedBooking, setConfirmedBooking] = useState<any | null>(null);
-
-  // Form State
-  const [form, setForm] = useState({
-    name: '',
-    phone: '',
-    tenantId: '',
-    branchId: '',
-    date: new Date().toISOString().split('T')[0],
-    startTime: '15:00',
-    endTime: '16:00',
-    title: 'Rapat / Koordinasi Bisnis',
-  });
+  const [bookingType, setBookingType] = useState<'tenant' | 'general'>('tenant');
+  const [duration, setDuration] = useState(60);
+  const [generalOrganization, setGeneralOrganization] = useState('');
+  const [form, setForm] = useState({ name: '', phone: '', tenantId: '', branchId: '', date: todayInBali(), startTime: '', endTime: '', title: 'Rapat / Koordinasi Bisnis' });
 
   useEffect(() => {
-    async function init() {
-      try {
-        const [bRes, cRes] = await Promise.all([
-          fetch('/api/branches').then((r) => r.json()),
-          fetch('/api/customers').then((r) => r.json()),
-        ]);
+    Promise.all([fetch('/api/branches').then(r => r.json()), fetch('/api/customers').then(r => r.json())])
+      .then(([branchResult, customerResult]) => {
+        const branchList = (branchResult.data || []).filter((branch: any) => branch.status === 'active');
+        const tenantList = (customerResult.data || []).filter((customer: any) => customer.status === 'aktif' && customer.companyName !== '-');
+        const requested = searchParams.get('branch');
+        const selected = branchList.find((branch: any) => branch.id === requested || branch.code?.toUpperCase() === requested?.toUpperCase()) || branchList[0];
+        setBranches(branchList); setTenants(tenantList);
+        setForm(current => ({ ...current, branchId: selected?.id || '', tenantId: tenantList[0]?.id || '' }));
+      })
+      .catch(() => setErrorMsg('Data booking gagal dimuat. Silakan coba lagi.'))
+      .finally(() => setLoading(false));
+  }, [searchParams]);
 
-        const branchList = bRes.data || [];
-        // Only active verified tenants can be chosen per requirement!
-        const tenantList = (cRes.data || []).filter((c: any) => c.status === 'aktif');
+  const loadAvailability = useCallback(async () => {
+    if (!form.branchId || !form.date) return;
+    setLoadingSchedule(true); setErrorMsg(null);
+    try {
+      const response = await fetch(`/api/bookings/availability?branchId=${encodeURIComponent(form.branchId)}&date=${encodeURIComponent(form.date)}`, { cache: 'no-store' });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || 'Jadwal gagal dimuat.');
+      setAvailability(result.data);
+      setForm(current => ({ ...current, startTime: '', endTime: '' }));
+    } catch (error: any) { setAvailability(null); setErrorMsg(error.message); }
+    finally { setLoadingSchedule(false); }
+  }, [form.branchId, form.date]);
 
-        setBranches(branchList);
-        setTenants(tenantList);
+  useEffect(() => { loadAvailability(); }, [loadAvailability]);
 
-        let initialBranchId = branchList.length > 0 ? branchList[0].id : '';
-        if (branchParam) {
-          const match = branchList.find(
-            (b: any) => b.id === branchParam || b.code.toUpperCase() === branchParam.toUpperCase()
-          );
-          if (match) initialBranchId = match.id;
-        }
+  const slots = useMemo(() => {
+    const baliNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Makassar' }));
+    const currentMinutes = baliNow.getHours() * 60 + baliNow.getMinutes();
+    return Array.from({ length: (CLOSE_MINUTES - OPEN_MINUTES) / STEP_MINUTES }, (_, index) => {
+      const start = OPEN_MINUTES + index * STEP_MINUTES, end = start + duration;
+      const past = form.date === todayInBali() && start <= currentMinutes;
+      const conflicting = availability?.bookings.find(booking => overlaps(start, end, booking));
+      return { time: toTime(start), endTime: toTime(end), available: !past && end <= CLOSE_MINUTES && !conflicting, conflicting };
+    });
+  }, [availability, duration, form.date]);
 
-        const initialTenantId = tenantList.length > 0 ? tenantList[0].id : '';
-
-        setForm((prev) => ({
-          ...prev,
-          branchId: initialBranchId,
-          tenantId: initialTenantId,
-        }));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    init();
-  }, [branchParam]);
-
-  const handleBookingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-
-    if (!form.name.trim() || !form.phone.trim() || !form.tenantId || !form.branchId) {
-      setErrorMsg('Semua kolom wajib diisi lengkap.');
-      return;
-    }
-
-    if (form.startTime >= form.endTime) {
-      setErrorMsg('Jam selesai harus lebih besar dari jam mulai (contoh: 15.00 hingga 16.00).');
-      return;
-    }
-
+  const handleBookingSubmit = async (event: React.FormEvent) => {
+    event.preventDefault(); setErrorMsg(null);
+    if (!form.startTime || !form.endTime) return setErrorMsg('Pilih salah satu jam yang masih tersedia.');
+    if (!form.name.trim() || !form.phone.trim() || !form.branchId || (bookingType === 'tenant' && !form.tenantId)) return setErrorMsg('Lengkapi semua kolom wajib.');
+    const tenant = tenants.find(item => item.id === form.tenantId);
+    const organization = bookingType === 'tenant' ? tenant?.companyName : generalOrganization.trim() || 'Customer Umum';
     setSubmitting(true);
     try {
-      const selectedTenant = tenants.find((t) => t.id === form.tenantId);
-      const tenantName = selectedTenant ? selectedTenant.companyName : '';
-
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branchId: form.branchId,
-          customerId: form.tenantId,
-          bookerName: form.name.trim(),
-          bookerPhone: form.phone.trim(),
-          title: `${form.title} (${form.name} - ${tenantName})`,
-          date: form.date,
-          startTime: form.startTime,
-          endTime: form.endTime,
-          createdBy: 'tenant',
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        setErrorMsg(data.error || 'Gagal membuat booking.');
-      } else {
-        const branch = branches.find((b) => b.id === form.branchId);
-        setConfirmedBooking({
-          booking: data.data,
-          branch,
-          tenantName,
-          bookerName: form.name,
-          bookerPhone: form.phone,
-        });
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan sistem.');
-    } finally {
-      setSubmitting(false);
-    }
+      const response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        branchId: form.branchId, roomId: availability?.room.id, customerId: bookingType === 'tenant' ? form.tenantId : undefined,
+        bookingType, bookerName: form.name.trim(), bookerPhone: form.phone.trim(),
+        title: `${form.title.trim() || 'Penggunaan Meeting Room'} (${form.name.trim()} - ${organization})`,
+        date: form.date, startTime: form.startTime, endTime: form.endTime, createdBy: 'tenant',
+      }) });
+      const result = await response.json();
+      if (!result.success) { await loadAvailability(); throw new Error(result.error || 'Booking gagal dibuat.'); }
+      setConfirmedBooking({ booking: result.data, branch: branches.find(branch => branch.id === form.branchId), organization, bookerName: form.name, bookerPhone: form.phone });
+    } catch (error: any) { setErrorMsg(error.message || 'Terjadi kesalahan sistem.'); }
+    finally { setSubmitting(false); }
   };
 
-  const selectedBranchObj = branches.find((b) => b.id === form.branchId);
+  const selectedBranch = branches.find(branch => branch.id === form.branchId);
+  return <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-900" style={{ backgroundColor: '#f1f5f9' }}>
+    <div className="mx-auto w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-300/60">
+      <div className="h-2 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500" />
+      <div className="p-6 sm:p-8">
+        <header className="mb-7 text-center">
+          <span className="inline-flex rounded-2xl border border-slate-100 bg-white p-2.5 shadow-sm"><img src="/logo.webp" alt="BOffice" className="h-12 w-auto object-contain" /></span>
+          <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-blue-600">Reservasi meeting room</p>
+          <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Pilih jadwal yang masih tersedia</h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">Jadwal merah sudah terbooking dan tidak dapat dipilih. Jadwal diperiksa kembali saat booking dikonfirmasi.</p>
+        </header>
+        {errorMsg && <div className="mb-5 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{errorMsg}</div>}
 
-  return (
-    <div
-      className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-4 selection:bg-blue-600 selection:text-white"
-      style={{ backgroundColor: '#f1f5f9', color: '#0f172a' }}
-    >
-      <div
-        className="max-w-xl w-full bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-300/60 space-y-6 relative overflow-hidden"
-        style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
-      >
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-emerald-500 to-teal-400" />
+        {confirmedBooking ? <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+          <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" /><h2 className="mt-3 text-xl font-extrabold">Booking berhasil dikonfirmasi</h2><p className="mt-1 text-sm text-slate-600">Slot ini sekarang otomatis tertutup untuk pemesan lain.</p>
+          <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 text-left text-sm"><p className="font-bold">{confirmedBooking.branch?.name} · {availability?.room.name}</p><p className="mt-1 text-slate-500">{confirmedBooking.organization} · {confirmedBooking.bookerName}</p><p className="mt-3 font-mono font-bold text-emerald-700">{confirmedBooking.booking.date} · {String(confirmedBooking.booking.startTime).slice(0,5)}–{String(confirmedBooking.booking.endTime).slice(0,5)}</p></div>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row"><Link href={`/attendance/${confirmedBooking.branch?.code}`} className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white">Buka halaman check-in</Link><button type="button" onClick={() => { setConfirmedBooking(null); loadAvailability(); }} className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700">Booking sesi lain</button></div>
+        </section> : loading ? <div className="py-16 text-center text-sm text-slate-400">Memuat formulir booking…</div> : <form onSubmit={handleBookingSubmit} className="space-y-6">
+          <section className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+            <label className="text-sm font-bold text-slate-700"><span className="mb-1.5 flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-600" />Cabang</span><select value={form.branchId} onChange={event => setForm({ ...form, branchId: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3">{branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name} — {branch.code}</option>)}</select></label>
+            <label className="text-sm font-bold text-slate-700"><span className="mb-1.5 flex items-center gap-2"><CalendarDays className="h-4 w-4 text-blue-600" />Tanggal</span><input type="date" min={todayInBali()} required value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" /></label>
+            {selectedBranch && <p className="sm:col-span-2 text-xs text-slate-500">📍 {selectedBranch.address}</p>}
+          </section>
 
-        {/* Logo & Header */}
-        <div className="text-center space-y-2">
-          <div className="flex justify-center mb-1">
-            <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-100 inline-flex items-center justify-center">
-              <img
-                src="/logo.webp"
-                alt="BOffice Logo"
-                className="h-12 w-auto object-contain"
-              />
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Reservasi Ruang Rapat Publik</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Booking Meeting Room BOffice
-          </h1>
-          <p className="text-slate-500 text-xs max-w-md mx-auto">
-            Silakan reservasi jadwal terlebih dahulu. Setelah berhasil booking, Anda dapat melakukan Check-In saat tiba di ruangan.
-          </p>
-        </div>
+          <section>
+            <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="flex items-center gap-2 font-extrabold"><Clock className="h-5 w-5 text-blue-600" />Pilih jam mulai</h2><p className="mt-1 text-xs text-slate-500">Operasional 08:00–20:00, interval 30 menit.</p></div><button type="button" onClick={loadAvailability} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600"><RefreshCw className={`h-3.5 w-3.5 ${loadingSchedule ? 'animate-spin' : ''}`} />Perbarui jadwal</button></div>
+            <div className="mt-3 flex flex-wrap gap-2"><span className="py-2 text-xs font-semibold text-slate-500">Durasi:</span>{DURATIONS.map(minutes => <button type="button" key={minutes} onClick={() => { setDuration(minutes); setForm(current => ({ ...current, startTime: '', endTime: '' })); }} className={`rounded-lg border px-3 py-2 text-xs font-bold ${duration === minutes ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{minutes < 60 ? '30 menit' : `${minutes / 60} jam`}</button>)}</div>
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">{slots.map(slot => <button type="button" key={slot.time} disabled={!slot.available || loadingSchedule} onClick={() => setForm(current => ({ ...current, startTime: slot.time, endTime: slot.endTime }))} className={`rounded-xl border px-2 py-3 text-center transition ${form.startTime === slot.time ? 'border-blue-600 bg-blue-600 text-white shadow-md' : slot.available ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-500' : slot.conflicting ? 'cursor-not-allowed border-rose-200 bg-rose-50 text-rose-500 line-through' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'}`}><span className="block text-sm font-black">{slot.time}</span><span className="mt-0.5 block text-[10px] font-semibold">{slot.available ? `s/d ${slot.endTime}` : slot.conflicting ? 'Terbooking' : 'Tidak tersedia'}</span></button>)}</div>
+            {availability?.bookings.length ? <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 p-3"><p className="text-xs font-bold text-rose-700">Jadwal yang sudah terbooking:</p><div className="mt-2 flex flex-wrap gap-2">{availability.bookings.map(booking => <span key={booking.id} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-rose-600 ring-1 ring-rose-200">{booking.startTime}–{booking.endTime}</span>)}</div></div> : !loadingSchedule && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">Belum ada booking pada tanggal ini. Semua slot operasional masih tersedia.</p>}
+          </section>
 
-        {errorMsg && (
-          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
+          <section className="space-y-4 border-t border-slate-200 pt-6">
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setBookingType('tenant')} className={`rounded-lg px-3 py-2.5 text-sm font-bold ${bookingType === 'tenant' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}><Building2 className="mr-2 inline h-4 w-4" />Tenant BOffice</button><button type="button" onClick={() => setBookingType('general')} className={`rounded-lg px-3 py-2.5 text-sm font-bold ${bookingType === 'general' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}><Users className="mr-2 inline h-4 w-4" />Customer umum</button></div>
+            {bookingType === 'tenant' ? <label className="block text-sm font-bold">Perusahaan tenant<select required value={form.tenantId} onChange={event => setForm({ ...form, tenantId: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3">{tenants.map(tenant => <option key={tenant.id} value={tenant.id}>{tenant.companyName}</option>)}</select></label> : <label className="block text-sm font-bold">Perusahaan / organisasi <span className="font-normal text-slate-400">(opsional)</span><input value={generalOrganization} onChange={event => setGeneralOrganization(event.target.value)} placeholder="Nama perusahaan atau pribadi" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label>}
+            <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold"><span className="flex items-center gap-2"><UserCheck className="h-4 w-4 text-blue-600" />Nama pemesan</span><input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label><label className="text-sm font-bold"><span className="flex items-center gap-2"><Phone className="h-4 w-4 text-emerald-600" />Nomor WhatsApp / HP</span><input required inputMode="tel" value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} placeholder="081234567890" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label></div>
+            <label className="block text-sm font-bold">Keperluan rapat<input value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label>
+          </section>
 
-        {confirmedBooking ? (
-          /* SUCCESS SCREEN WITH DIRECT CHECK-IN BUTTON & BRANCH LINK */
-          <div className="bg-emerald-50/70 p-6 rounded-2xl border border-emerald-200 text-center space-y-4 animate-fadeIn">
-            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-
-            <div>
-              <h2 className="text-lg font-extrabold text-slate-900">Booking Berhasil Dikonfirmasi!</h2>
-              <p className="text-xs text-slate-600 mt-1">
-                Jadwal ruang meeting Anda telah tersimpan di sistem BOffice.
-              </p>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl text-xs text-left space-y-2 border border-slate-200 font-sans shadow-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Cabang Ruang:</span>
-                <span className="font-bold text-slate-900 text-right">
-                  {confirmedBooking.branch?.name} ({confirmedBooking.branch?.code})
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Lembaga / Tenant:</span>
-                <span className="font-bold text-blue-600">{confirmedBooking.tenantName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Penanggung Jawab:</span>
-                <span className="font-semibold text-slate-900">
-                  {confirmedBooking.bookerName} ({confirmedBooking.bookerPhone})
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-slate-100 pt-2">
-                <span className="text-slate-500">Tanggal & Jam Sesi:</span>
-                <span className="font-mono text-emerald-700 font-bold">
-                  {confirmedBooking.booking.date} • {confirmedBooking.booking.startTime} - {confirmedBooking.booking.endTime}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-[11px] text-blue-900 text-left leading-relaxed">
-              💡 <strong>Langkah Selanjutnya:</strong> Saat tiba di lokasi cabang BOffice, masukkan nomor HP Anda <strong>({confirmedBooking.bookerPhone})</strong> pada halaman Check-In untuk memulai sesi rapat.
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row gap-3">
-              <Link
-                href={`/attendance/${confirmedBooking.branch?.code}`}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
-              >
-                <span>Buka Check-In Cabang Ini</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <button
-                onClick={() => setConfirmedBooking(null)}
-                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold rounded-xl text-xs transition-all"
-              >
-                Booking Sesi Lain
-              </button>
-            </div>
-          </div>
-        ) : loading ? (
-          <div className="py-12 text-center text-slate-400 text-xs animate-pulse">
-            Memuat data cabang dan tenant...
-          </div>
-        ) : (
-          /* BOOKING FORM */
-          <form onSubmit={handleBookingSubmit} className="space-y-4 text-xs">
-            {/* Cabang Selector */}
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-blue-600" /> Pilih Cabang Ruang Meeting BOffice *
-              </label>
-              <select
-                value={form.branchId}
-                onChange={(e) => setForm({ ...form, branchId: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white cursor-pointer transition-all"
-              >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.city}) — {b.code}
-                  </option>
-                ))}
-              </select>
-              {selectedBranchObj && (
-                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                  <span>📍 Alamat: {selectedBranchObj.address}</span>
-                </p>
-              )}
-            </div>
-
-            {/* Tenant / Lembaga Dropdown (MUST CHOOSE, NO MANUAL INPUT per user rule) */}
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-blue-600" /> Lembaga / Perusahaan Tenant *
-                </span>
-                <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  Wajib Terdaftar
-                </span>
-              </label>
-
-              <select
-                value={form.tenantId}
-                onChange={(e) => setForm({ ...form, tenantId: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white cursor-pointer transition-all"
-              >
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.companyName} ({t.entityType || 'Tenant'} - PIC: {t.picName})
-                  </option>
-                ))}
-              </select>
-
-              {/* Requirement Note: Lembaga harus terdaftar dulu */}
-              <div className="mt-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600 flex items-start gap-2">
-                <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div className="leading-relaxed">
-                  Lembaga/perusahaan harus berstatus tenant aktif di BOffice.{' '}
-                  <span className="text-slate-500">Belum terdaftar?</span>{' '}
-                  <a
-                    href="https://wa.me/628119876543?text=Halo%20Admin%20BOffice,%20saya%20ingin%20mendaftarkan%20lembaga/perusahaan%20saya%20sebagai%20tenant%20BOffice"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 font-bold underline hover:text-blue-700"
-                  >
-                    Hubungi Admin BOffice via WhatsApp
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Nama Booker & Phone */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-slate-500" /> Nama Penanggung Jawab Rapat *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Budi Santoso"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-emerald-600" /> No. WhatsApp / HP (Kunci Check-In) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="081234567890"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Nomor ini digunakan saat Check-In di depan ruangan.
-                </p>
-              </div>
-            </div>
-
-            {/* Date & Time */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5 text-slate-500" /> Tanggal *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-slate-500" /> Dari Jam *
-                </label>
-                <input
-                  type="time"
-                  required
-                  value={form.startTime}
-                  onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-slate-500" /> Hingga Jam *
-                </label>
-                <input
-                  type="time"
-                  required
-                  value={form.endTime}
-                  onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Topic / Keperluan */}
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Topik / Keperluan Rapat
-              </label>
-              <input
-                type="text"
-                placeholder="Contoh: Rapat Evaluasi Proyek / Diskusi Klien"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-              />
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-600/20 transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <span>{submitting ? 'Memeriksa Jadwal & Menyimpan...' : 'Konfirmasi Booking Ruangan'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-        )}
-
-        {/* Footer info & Direct Check-in link */}
-        <div className="pt-3 border-t border-slate-200 text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Sudah punya booking sebelumnya?</span>
-          <Link
-            href="/attendance"
-            className="text-blue-600 hover:text-blue-700 font-bold underline"
-          >
-            Masuk ke Halaman Check-In Cabang →
-          </Link>
-        </div>
+          <button disabled={submitting || !form.startTime || loadingSchedule} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-sm font-black text-white shadow-lg shadow-blue-600/20 disabled:cursor-not-allowed disabled:opacity-50"><span>{submitting ? 'Memeriksa dan menyimpan…' : form.startTime ? `Booking ${form.startTime}–${form.endTime}` : 'Pilih jam tersedia terlebih dahulu'}</span><ArrowRight className="h-4 w-4" /></button>
+        </form>}
+        <footer className="mt-6 flex flex-col items-center justify-between gap-2 border-t border-slate-200 pt-4 text-xs text-slate-500 sm:flex-row"><span>Sudah mempunyai booking?</span><Link href="/attendance" className="font-bold text-blue-600">Buka halaman check-in →</Link></footer>
       </div>
     </div>
-  );
+  </main>;
 }
 
 export default function PublicBookingPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-          <div className="text-slate-500 text-xs animate-pulse">Memuat formulir booking...</div>
-        </div>
-      }
-    >
-      <BookingFormInner />
-    </Suspense>
-  );
+  return <Suspense fallback={<div className="min-h-screen bg-slate-100 p-10 text-center text-sm text-slate-500">Memuat formulir booking…</div>}><BookingFormInner /></Suspense>;
 }

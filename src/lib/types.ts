@@ -171,7 +171,7 @@ export interface MeetingBooking {
   id: string;
   branchId: string;
   roomId: string;
-  customerId: string;
+  customerId?: string;
   bookerName?: string;
   bookerPhone?: string;
   title: string;

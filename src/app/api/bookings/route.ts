@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookings, addBooking, cancelBooking, getBranches, getMeetingRooms } from '@/lib/data-store';
+import { getBookings, addBooking, cancelBooking, getMeetingRooms } from '@/lib/data-store';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -11,13 +11,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    let { branchId, roomId, customerId, title, date, startTime, endTime, createdBy } = body;
+    let { branchId, roomId, customerId, bookingType, bookerName, bookerPhone, title, date, startTime, endTime, createdBy } = body;
 
-    if (!branchId || !customerId || !title || !date || !startTime || !endTime) {
+    if (!branchId || !title || !date || !startTime || !endTime || (bookingType !== 'general' && !customerId)) {
       return NextResponse.json(
         { success: false, error: 'Cabang, Penyewa, Judul Rapat, Tanggal, dan Jam Mulai/Selesai wajib diisi' },
         { status: 400 }
       );
+    }
+
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
+    if (date < today) return NextResponse.json({ success: false, error: 'Tanggal booking tidak boleh sudah lewat.' }, { status: 400 });
+    if (startTime >= endTime) return NextResponse.json({ success: false, error: 'Jam selesai harus setelah jam mulai.' }, { status: 400 });
+    if (bookingType === 'general' && (!bookerName?.trim() || !bookerPhone?.trim())) {
+      return NextResponse.json({ success: false, error: 'Nama dan nomor HP customer umum wajib diisi.' }, { status: 400 });
     }
 
     // Auto-resolve roomId if not selected (1 branch has 1 room in MVP per PRD 5.3)
@@ -40,7 +47,9 @@ export async function POST(req: NextRequest) {
     const result = await addBooking({
       branchId,
       roomId,
-      customerId,
+      customerId: bookingType === 'general' ? undefined : customerId,
+      bookerName: bookerName?.trim(),
+      bookerPhone: bookerPhone?.trim(),
       title,
       date,
       startTime,
