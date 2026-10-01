@@ -60,6 +60,15 @@ export async function addBranch(branch:Omit<Branch,'id'|'createdAt'>){
 export async function updateBranch(id:string,updates:Partial<Branch>){ return updateOne<Branch>('branches',id,updates); }
 
 export async function getCustomers(branchId?:string){ return list<Customer>('customers',branchId); }
+export async function searchActiveTenants(query:string){
+  const words=query.trim().split(/\s+/).filter(Boolean).slice(0,5);
+  if(words.length<2)return [];
+  let request:any=getInsforge().database.from('customers').select('id,company_name').eq('status','aktif').neq('company_name','-');
+  for(const word of words)request=request.ilike('company_name',`%${word.replace(/[%_]/g,'')}%`);
+  const {data,error}=await request.order('company_name').limit(8);
+  assertOk(error);
+  return ((data||[]) as any[]).map(row=>({id:row.id,companyName:row.company_name}));
+}
 export async function addCustomer(value:Omit<Customer,'id'|'createdAt'|'updatedAt'>){ return insertOne<Customer>('customers',{...value,phone:normalizePhone(value.phone),id:makeId('cus')}); }
 export async function updateCustomer(id:string,updates:Partial<Customer>){ return updateOne<Customer>('customers',id,{...updates,updatedAt:new Date().toISOString()}); }
 

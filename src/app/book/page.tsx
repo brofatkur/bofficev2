@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, Building2, CalendarDays, CheckCircle2, Clock, MapPin, Phone, RefreshCw, UserCheck, Users } from 'lucide-react';
+import { AlertCircle, ArrowRight, Building2, CalendarDays, CheckCircle2, Clock, LoaderCircle, MapPin, Phone, RefreshCw, Search, UserCheck, Users } from 'lucide-react';
 
 type BookingBlock = { id: string; startTime: string; endTime: string; status: string };
 type Availability = { room: { id: string; name: string }; bookings: BookingBlock[] };
@@ -18,6 +18,10 @@ function BookingFormInner() {
   const searchParams = useSearchParams();
   const [branches, setBranches] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
+  const [tenantQuery, setTenantQuery] = useState('');
+  const [selectedTenant, setSelectedTenant] = useState<any | null>(null);
+  const [searchingTenants, setSearchingTenants] = useState(false);
+  const [tenantSearchComplete, setTenantSearchComplete] = useState(false);
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
@@ -30,18 +34,37 @@ function BookingFormInner() {
   const [form, setForm] = useState({ name: '', phone: '', tenantId: '', branchId: '', date: todayInBali(), startTime: '', endTime: '', title: 'Rapat / Koordinasi Bisnis' });
 
   useEffect(() => {
-    Promise.all([fetch('/api/branches').then(r => r.json()), fetch('/api/customers').then(r => r.json())])
-      .then(([branchResult, customerResult]) => {
+    fetch('/api/branches').then(r => r.json())
+      .then(branchResult => {
         const branchList = (branchResult.data || []).filter((branch: any) => branch.status === 'active');
-        const tenantList = (customerResult.data || []).filter((customer: any) => customer.status === 'aktif' && customer.companyName !== '-');
         const requested = searchParams.get('branch');
         const selected = branchList.find((branch: any) => branch.id === requested || branch.code?.toUpperCase() === requested?.toUpperCase()) || branchList[0];
-        setBranches(branchList); setTenants(tenantList);
-        setForm(current => ({ ...current, branchId: selected?.id || '', tenantId: tenantList[0]?.id || '' }));
+        setBranches(branchList);
+        setForm(current => ({ ...current, branchId: selected?.id || '', tenantId: '' }));
       })
       .catch(() => setErrorMsg('Data booking gagal dimuat. Silakan coba lagi.'))
       .finally(() => setLoading(false));
   }, [searchParams]);
+
+  useEffect(() => {
+    if (bookingType !== 'tenant' || selectedTenant) return;
+    const words = tenantQuery.trim().split(/\s+/).filter(Boolean);
+    setTenantSearchComplete(false);
+    if (words.length < 2) { setTenants([]); setSearchingTenants(false); return; }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setSearchingTenants(true);
+      try {
+        const response = await fetch(`/api/bookings/tenant-search?q=${encodeURIComponent(tenantQuery.trim())}`, { cache: 'no-store', signal: controller.signal });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Pencarian perusahaan gagal.');
+        setTenants(result.data || []); setTenantSearchComplete(true);
+      } catch (error: any) {
+        if (error.name !== 'AbortError') setErrorMsg(error.message);
+      } finally { if (!controller.signal.aborted) setSearchingTenants(false); }
+    }, 350);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [tenantQuery, bookingType, selectedTenant]);
 
   const loadAvailability = useCallback(async () => {
     if (!form.branchId || !form.date) return;
@@ -73,8 +96,7 @@ function BookingFormInner() {
     event.preventDefault(); setErrorMsg(null);
     if (!form.startTime || !form.endTime) return setErrorMsg('Pilih salah satu jam yang masih tersedia.');
     if (!form.name.trim() || !form.phone.trim() || !form.branchId || (bookingType === 'tenant' && !form.tenantId)) return setErrorMsg('Lengkapi semua kolom wajib.');
-    const tenant = tenants.find(item => item.id === form.tenantId);
-    const organization = bookingType === 'tenant' ? tenant?.companyName : generalOrganization.trim() || 'Customer Umum';
+    const organization = bookingType === 'tenant' ? selectedTenant?.companyName : generalOrganization.trim() || 'Customer Umum';
     setSubmitting(true);
     try {
       const response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
@@ -122,8 +144,20 @@ function BookingFormInner() {
           </section>
 
           <section className="space-y-4 border-t border-slate-200 pt-6">
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setBookingType('tenant')} className={`rounded-lg px-3 py-2.5 text-sm font-bold ${bookingType === 'tenant' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}><Building2 className="mr-2 inline h-4 w-4" />Tenant BOffice</button><button type="button" onClick={() => setBookingType('general')} className={`rounded-lg px-3 py-2.5 text-sm font-bold ${bookingType === 'general' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}><Users className="mr-2 inline h-4 w-4" />Customer umum</button></div>
-            {bookingType === 'tenant' ? <label className="block text-sm font-bold">Perusahaan tenant<select required value={form.tenantId} onChange={event => setForm({ ...form, tenantId: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3">{tenants.map(tenant => <option key={tenant.id} value={tenant.id}>{tenant.companyName}</option>)}</select></label> : <label className="block text-sm font-bold">Perusahaan / organisasi <span className="font-normal text-slate-400">(opsional)</span><input value={generalOrganization} onChange={event => setGeneralOrganization(event.target.value)} placeholder="Nama perusahaan atau pribadi" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label>}
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setBookingType('tenant')} className={`rounded-lg px-3 py-2.5 text-sm font-bold ${bookingType === 'tenant' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}><Building2 className="mr-2 inline h-4 w-4" />Tenant BOffice</button><button type="button" onClick={() => { setBookingType('general'); setForm(current => ({ ...current, tenantId: '' })); setSelectedTenant(null); setTenantQuery(''); setTenants([]); }} className={`rounded-lg px-3 py-2.5 text-sm font-bold ${bookingType === 'general' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}><Users className="mr-2 inline h-4 w-4" />Customer umum</button></div>
+            {bookingType === 'tenant' ? <div className="block text-sm font-bold">
+              <label htmlFor="tenant-search">Cari perusahaan tenant</label>
+              <div className="relative mt-1.5">
+                <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <input id="tenant-search" autoComplete="off" value={tenantQuery} onChange={event => { setTenantQuery(event.target.value); setSelectedTenant(null); setTenantSearchComplete(false); setForm(current => ({ ...current, tenantId: '' })); }} placeholder="Ketik minimal 2 kata, contoh: Bali Kreatif" className="w-full rounded-xl border border-slate-300 py-3 pl-10 pr-10" />
+                {searchingTenants && <LoaderCircle className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-blue-600" />}
+              </div>
+              {selectedTenant ? <div className="mt-2 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3"><span className="text-sm font-bold text-emerald-800"><CheckCircle2 className="mr-2 inline h-4 w-4" />{selectedTenant.companyName}</span><button type="button" onClick={() => { setSelectedTenant(null); setTenantQuery(''); setForm(current => ({ ...current, tenantId: '' })); }} className="text-xs font-bold text-slate-500">Ganti</button></div> : <>
+                {tenantQuery.trim().split(/\s+/).filter(Boolean).length < 2 && <p className="mt-2 text-xs font-normal text-slate-500">Masukkan sedikitnya dua kata dari nama perusahaan. Daftar tenant tidak ditampilkan untuk menjaga privasi.</p>}
+                {tenants.length > 0 && <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">{tenants.map(tenant => <button type="button" key={tenant.id} onClick={() => { setSelectedTenant(tenant); setTenantQuery(tenant.companyName); setTenants([]); setForm(current => ({ ...current, tenantId: tenant.id })); }} className="block w-full border-b border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 last:border-0 hover:bg-blue-50">{tenant.companyName}</button>)}</div>}
+                {tenantSearchComplete && !searchingTenants && tenants.length === 0 && <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs font-normal text-amber-700">Perusahaan tidak ditemukan. Periksa ejaan atau pilih Customer umum.</p>}
+              </>}
+            </div> : <label className="block text-sm font-bold">Perusahaan / organisasi <span className="font-normal text-slate-400">(opsional)</span><input value={generalOrganization} onChange={event => setGeneralOrganization(event.target.value)} placeholder="Nama perusahaan atau pribadi" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label>}
             <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold"><span className="flex items-center gap-2"><UserCheck className="h-4 w-4 text-blue-600" />Nama pemesan</span><input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label><label className="text-sm font-bold"><span className="flex items-center gap-2"><Phone className="h-4 w-4 text-emerald-600" />Nomor WhatsApp / HP</span><input required inputMode="tel" value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} placeholder="081234567890" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label></div>
             <label className="block text-sm font-bold">Keperluan rapat<input value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-3" /></label>
           </section>
