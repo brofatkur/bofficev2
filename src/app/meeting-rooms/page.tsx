@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   CalendarDays,
   Clock,
@@ -18,15 +18,20 @@ import {
   Building2,
   LogIn,
   LogOut,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function MeetingRoomsPage() {
   const [rooms, setRooms] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarDate, setCalendarDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' }));
+  const [calendarRoomId, setCalendarRoomId] = useState('');
 
   // Booking Form Modal State
   const [showModal, setShowModal] = useState(false);
@@ -44,18 +49,21 @@ export default function MeetingRoomsPage() {
 
   const fetchData = async () => {
     try {
-      const [roomsRes, custRes, bookRes, attRes] = await Promise.all([
+      const [roomsRes, custRes, bookRes, attRes, branchRes] = await Promise.all([
         fetch('/api/meeting-rooms').then((r) => r.json()),
         fetch('/api/customers').then((r) => r.json()),
         fetch('/api/bookings').then((r) => r.json()),
         fetch('/api/attendance').then((r) => r.json()),
+        fetch('/api/branches').then((r) => r.json()),
       ]);
       setRooms(roomsRes.data || []);
       setCustomers(custRes.data || []);
       setBookings(bookRes.data || []);
       setAttendanceLogs(attRes.data || []);
+      setBranches(branchRes.data || []);
       if (roomsRes.data?.length) {
         setForm((prev) => ({ ...prev, roomId: roomsRes.data[0].id }));
+        setCalendarRoomId((current) => current || roomsRes.data[0].id);
       }
       if (custRes.data?.length) {
         setForm((prev) => ({ ...prev, customerId: custRes.data[0].id }));
@@ -74,10 +82,11 @@ export default function MeetingRoomsPage() {
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const selectedRoom = rooms.find((room) => room.id === form.roomId);
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, branchId: selectedRoom?.branchId }),
       });
 
       const data = await res.json();
@@ -160,6 +169,42 @@ export default function MeetingRoomsPage() {
 
   const activeVisitors = attendanceLogs.filter((l) => l.status === 'active');
 
+  const selectedCalendarRoom = rooms.find((room) => room.id === calendarRoomId);
+  const selectedCalendarBranch = branches.find((branch) => branch.id === selectedCalendarRoom?.branchId);
+  const calendarBookings = useMemo(() => bookings
+    .filter((booking) => booking.roomId === calendarRoomId && booking.date === calendarDate && booking.status !== 'cancelled')
+    .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime))), [bookings, calendarRoomId, calendarDate]);
+  const calendarDays = useMemo(() => {
+    const selected = new Date(`${calendarDate}T00:00:00`);
+    const monday = new Date(selected);
+    const day = monday.getDay() || 7;
+    monday.setDate(monday.getDate() - day + 1);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(monday); date.setDate(monday.getDate() + index);
+      return { value: date.toLocaleDateString('en-CA'), weekday: date.toLocaleDateString('id-ID', { weekday: 'short' }), day: date.getDate(), month: date.toLocaleDateString('id-ID', { month: 'short' }) };
+    });
+  }, [calendarDate]);
+  const calendarSlots = useMemo(() => Array.from({ length: 24 }, (_, index) => {
+    const startMinutes = 8 * 60 + index * 30;
+    const endMinutes = startMinutes + 30;
+    const startTime = `${String(Math.floor(startMinutes / 60)).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
+    const booking = calendarBookings.find((item) => startTime < String(item.endTime).slice(0, 5) && endTime > String(item.startTime).slice(0, 5));
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Makassar' }));
+    const today = now.toLocaleDateString('en-CA');
+    const passed = calendarDate < today || (calendarDate === today && startMinutes <= now.getHours() * 60 + now.getMinutes());
+    return { startTime, endTime, booking, passed };
+  }), [calendarBookings, calendarDate]);
+
+  const moveCalendarWeek = (days: number) => {
+    const date = new Date(`${calendarDate}T00:00:00`); date.setDate(date.getDate() + days);
+    setCalendarDate(date.toLocaleDateString('en-CA'));
+  };
+  const openBookingAtSlot = (startTime: string, endTime: string) => {
+    setForm((current) => ({ ...current, roomId: calendarRoomId, date: calendarDate, startTime, endTime }));
+    setShowModal(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Title Header */}
@@ -212,6 +257,56 @@ export default function MeetingRoomsPage() {
           </button>
         </div>
       )}
+
+      {/* Availability Calendar */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-emerald-50 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-blue-700"><CalendarDays className="h-5 w-5" /><span className="text-xs font-black uppercase tracking-[0.16em]">Kalender Ketersediaan</span></div>
+              <h2 className="mt-1 text-lg font-extrabold text-slate-900">Cek slot meeting room per 30 menit</h2>
+              <p className="mt-1 text-xs text-slate-500">Pilih tanggal dan ruangan. Klik slot hijau untuk langsung membuat reservasi.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-[520px]">
+              <label className="text-xs font-bold text-slate-600">Meeting room
+                <select value={calendarRoomId} onChange={(event) => setCalendarRoomId(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900">
+                  {rooms.map((room) => { const branch = branches.find((item) => item.id === room.branchId); return <option key={room.id} value={room.id}>{branch?.name || 'Cabang'} — {room.name}</option>; })}
+                </select>
+              </label>
+              <label className="text-xs font-bold text-slate-600">Tanggal
+                <input type="date" value={calendarDate} onChange={(event) => setCalendarDate(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => moveCalendarWeek(-7)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label="Minggu sebelumnya"><ChevronLeft className="h-4 w-4" /></button>
+            <div className="grid flex-1 grid-cols-7 gap-1.5">
+              {calendarDays.map((day) => <button type="button" key={day.value} onClick={() => setCalendarDate(day.value)} className={`rounded-xl border px-1 py-2 text-center transition ${calendarDate === day.value ? 'border-blue-600 bg-blue-600 text-white shadow-md' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}><span className="block text-[10px] font-bold uppercase">{day.weekday}</span><span className="block text-base font-black leading-5">{day.day}</span><span className="block text-[9px]">{day.month}</span></button>)}
+            </div>
+            <button type="button" onClick={() => moveCalendarWeek(7)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" aria-label="Minggu berikutnya"><ChevronRight className="h-4 w-4" /></button>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-sm font-extrabold text-slate-900">{selectedCalendarRoom?.name || 'Meeting Room'} · {selectedCalendarBranch?.name || 'Cabang'}</p><p className="text-xs text-slate-500">{new Date(`${calendarDate}T00:00:00`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
+            <div className="flex flex-wrap gap-2 text-[11px] font-bold"><span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-200">{calendarSlots.filter((slot) => !slot.booking && !slot.passed).length} slot tersedia</span><span className="rounded-full bg-rose-50 px-3 py-1.5 text-rose-700 ring-1 ring-rose-200">{calendarSlots.filter((slot) => slot.booking).length} slot terisi</span></div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            {calendarSlots.map((slot) => {
+              const customer = slot.booking ? customers.find((item) => item.id === slot.booking.customerId) : null;
+              const occupiedBy = customer?.companyName || slot.booking?.bookerName || 'Customer umum';
+              if (slot.booking) return <div key={slot.startTime} title={`${slot.booking.title || occupiedBy} (${String(slot.booking.startTime).slice(0,5)}–${String(slot.booking.endTime).slice(0,5)})`} className="min-h-[72px] rounded-xl border border-rose-200 bg-rose-50 p-2 text-rose-700"><span className="block text-xs font-black">{slot.startTime}</span><span className="mt-1 block truncate text-[10px] font-bold">Terbooking</span><span className="block truncate text-[9px] text-rose-500">{occupiedBy}</span></div>;
+              if (slot.passed) return <div key={slot.startTime} className="min-h-[72px] rounded-xl border border-slate-200 bg-slate-100 p-2 text-slate-400"><span className="block text-xs font-black">{slot.startTime}</span><span className="mt-1 block text-[10px] font-semibold">Sudah lewat</span></div>;
+              return <button type="button" key={slot.startTime} onClick={() => openBookingAtSlot(slot.startTime, slot.endTime)} className="min-h-[72px] rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-left text-emerald-700 transition hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md"><span className="block text-xs font-black">{slot.startTime}</span><span className="mt-1 block text-[10px] font-bold">Tersedia</span><span className="block text-[9px] text-emerald-600">hingga {slot.endTime}</span></button>;
+            })}
+          </div>
+
+          {calendarBookings.length > 0 && <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-bold text-slate-700">Reservasi pada tanggal ini</p><div className="mt-2 flex flex-wrap gap-2">{calendarBookings.map((booking) => { const customer = customers.find((item) => item.id === booking.customerId); return <span key={booking.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600"><strong className="text-slate-900">{String(booking.startTime).slice(0,5)}–{String(booking.endTime).slice(0,5)}</strong> · {customer?.companyName || booking.bookerName || 'Customer umum'}</span>; })}</div></div>}
+        </div>
+      </section>
 
       {/* Live Active Attendees Banner */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-5 rounded-2xl border border-slate-700 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg">
