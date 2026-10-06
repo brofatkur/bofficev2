@@ -130,17 +130,18 @@ export async function addBooking(value:Omit<MeetingBooking,'id'|'createdAt'|'sta
 }
 export async function cancelBooking(id:string){ return Boolean(await updateOne('bookings',id,{status:'cancelled'})); }
 export async function getBookingsForCheckin(branchId:string,phone:string){
-  const norm=normalizePhone(phone),today=new Date().toISOString().slice(0,10);
+  const norm=normalizePhone(phone),today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
   const bookings=await getBookings(branchId);
   const customers=await getCustomers(branchId);
   const custMap=new Map(customers.map(c=>[c.id,c]));
   return bookings.filter(b=>{
-    if(b.branchId!==branchId||b.status==='cancelled'||b.date!==today)return false;
+    const bookingDate=String(b.date).slice(0,10);
+    if(b.branchId!==branchId||b.status==='cancelled'||bookingDate<today)return false;
     if(b.bookerPhone&&normalizePhone(b.bookerPhone)===norm)return true;
     const cust=b.customerId?custMap.get(b.customerId):undefined;
     if(cust&&normalizePhone(cust.phone)===norm)return true;
     return false;
-  });
+  }).sort((a,b)=>`${String(a.date).slice(0,10)} ${a.startTime}`.localeCompare(`${String(b.date).slice(0,10)} ${b.startTime}`));
 }
 
 export async function getAttendeeByPhone(phone:string){ const {data,error}=await getInsforge().database.from('attendees').select().eq('phone',normalizePhone(phone)).maybeSingle(); assertOk(error); return data?fromRow<MeetingAttendee>(data as any):null; }

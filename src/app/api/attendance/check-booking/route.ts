@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
 
   const allBookings = await getBookingsForCheckin(branchId, phone);
   const rooms = await getMeetingRooms(branchId);
-  const roomName = rooms.length > 0 ? rooms[0].name : 'Meeting Room Cabang';
   const booking = allBookings.length > 0 ? allBookings[0] : null;
+  const roomName = rooms.find((room) => room.id === booking?.roomId)?.name || rooms[0]?.name || 'Meeting Room Cabang';
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
+  const bookingDate = booking ? String(booking.date).slice(0, 10) : '';
 
   let tenantName = '';
   if (booking) {
@@ -33,6 +35,8 @@ export async function GET(req: NextRequest) {
       roomName,
       tenantName,
       allBookings,
+      checkInAllowed: bookingDate === today,
+      today,
     },
   });
 }

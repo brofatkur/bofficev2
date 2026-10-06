@@ -153,6 +153,11 @@ export default function BranchCheckInPage() {
   const handleCheckInSubmit = async () => {
     if (!branch || !bookingData?.booking) return;
 
+    if (!bookingData.checkInAllowed) {
+      alert(`Check-in baru dapat dilakukan pada tanggal booking, ${String(bookingData.booking.date).slice(0, 10)}.`);
+      return;
+    }
+
     setLoadingAction(true);
     try {
       const bookerName = bookingData.booking.bookerName || bookingData.tenantName || 'Tamu Rapat';
@@ -369,20 +374,26 @@ export default function BranchCheckInPage() {
                   <div className="flex justify-between border-t border-emerald-100 pt-2">
                     <span className="text-slate-500">Jadwal Sesi:</span>
                     <span className="font-mono text-emerald-700 font-bold">
-                      {bookingData.booking.date} • {bookingData.booking.startTime} - {bookingData.booking.endTime}
+                      {String(bookingData.booking.date).slice(0, 10)} • {String(bookingData.booking.startTime).slice(0, 5)} - {String(bookingData.booking.endTime).slice(0, 5)}
                     </span>
                   </div>
                 </div>
+
+                {!bookingData.checkInAllowed && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-center text-xs font-semibold leading-relaxed text-blue-800">
+                    Booking Anda terdaftar. Check-in akan tersedia pada tanggal {String(bookingData.booking.date).slice(0, 10)}.
+                  </div>
+                )}
 
                 {/* TOMBOL MASUK RUANGAN (CHECK IN) */}
                 <button
                   type="button"
                   onClick={handleCheckInSubmit}
-                  disabled={loadingAction}
+                  disabled={loadingAction || !bookingData.checkInAllowed}
                   className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg shadow-emerald-600/20 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <LogIn className="w-5 h-5" />
-                  <span>{loadingAction ? 'Memproses Masuk...' : 'Masuk Ruangan (Check In)'}</span>
+                  <span>{loadingAction ? 'Memproses Masuk...' : bookingData.checkInAllowed ? 'Masuk Ruangan (Check In)' : 'Check-In Belum Tersedia'}</span>
                 </button>
               </div>
             )}
