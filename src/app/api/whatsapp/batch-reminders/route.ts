@@ -27,7 +27,7 @@ export async function POST() {
           const message = `Halo Bapak/Ibu ${customer.picName} (${customer.companyName}),\n\n` +
             `Salam hangat dari Nusantara Office Center.\n` +
             `Kami menginformasikan bahwa kontrak sewa *${office.name}* Anda akan berakhir pada tanggal *${contract.endDate}* (${diffDays} hari lagi).\n\n` +
-            `Untuk menjaga keberlanjutan operasional dan penggunaan kuota Meeting Room 8 jam/bulan Anda, mohon konfirmasi perpanjangan sewa.\n\n` +
+            `Untuk menjaga keberlanjutan operasional dan penggunaan kuota Meeting Room ${Number(customer.meetingRoomMonthlyFreeHours??8)} jam/bulan Anda, mohon konfirmasi perpanjangan sewa.\n\n` +
             `Terima kasih! 🙏`;
 
           const res = await sendWhatsAppMessage({

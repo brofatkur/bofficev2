@@ -96,7 +96,7 @@ export default function DashboardPage() {
         `*PENGINGAT KONTRAK SEWA — BOffice*\n\n` +
         `Yth. ${customer.picName} (${customer.companyName}),\n` +
         `Kontrak sewa Anda di *BOffice ${branch?.name || ''}* akan berakhir pada *${contract.endDate}*.\n` +
-        `Mohon konfirmasi perpanjangan sewa Anda agar operasional dan hak kuota Meeting Room 8 jam/bulan tetap aktif.\n\n` +
+        `Mohon konfirmasi perpanjangan sewa Anda agar operasional dan hak kuota Meeting Room ${Number(customer.meetingRoomMonthlyFreeHours??8)} jam/bulan tetap aktif.\n\n` +
         `Terima kasih! 🙏\nTim BOffice Indonesia`;
 
       const res = await fetch('/api/whatsapp/send', {

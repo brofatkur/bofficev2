@@ -10,6 +10,11 @@ export async function PUT(req: NextRequest) {
   try {
     const { id, ...updates } = await req.json();
     if (!id) return NextResponse.json({ success: false, error: 'Customer ID wajib diisi' }, { status: 400 });
+    if ('meetingRoomMonthlyFreeHours' in updates) {
+      const quota=Number(updates.meetingRoomMonthlyFreeHours);
+      if(!Number.isFinite(quota)||quota<0||quota>1000)return NextResponse.json({success:false,error:'Kuota meeting room harus antara 0–1.000 jam per bulan.'},{status:400});
+      updates.meetingRoomMonthlyFreeHours=quota;
+    }
     return NextResponse.json({ success: true, data: await updateCustomer(id, updates) });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

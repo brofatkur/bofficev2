@@ -63,6 +63,7 @@ export interface Customer {
   userId?: string;
   onboardingStatus?: 'not_invited' | 'invited' | 'active' | 'suspended';
   profileCompletedAt?: string;
+  meetingRoomMonthlyFreeHours?: number;
 }
 
 export type PartnerType = 'property' | 'reseller' | 'vendor';

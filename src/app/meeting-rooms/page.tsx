@@ -91,9 +91,9 @@ export default function MeetingRoomsPage() {
       if (data.success) {
         setShowModal(false);
         if (data.overageAdded) {
-          setNotice(`Booking berhasil disimpan! ⚠️ Kuota gratis 8 jam terlampaui. Tambahan biaya overage Rp ${data.data.overageFee.toLocaleString('id-ID')} ditambahkan ke akun customer.`);
+          setNotice(`Booking berhasil disimpan! ⚠️ Kuota gratis tenant terlampaui. Tambahan biaya overage Rp ${data.data.overageFee.toLocaleString('id-ID')} ditambahkan ke akun customer.`);
         } else {
-          setNotice('Booking ruang meeting berhasil didaftarkan dalam kuota gratis 8 jam/bulan!');
+          setNotice('Booking ruang meeting berhasil didaftarkan dalam kuota gratis tenant!');
         }
         fetchData();
       } else {
@@ -155,13 +155,14 @@ export default function MeetingRoomsPage() {
   const customerQuotaSummary = customers.map((cus) => {
     const cusBookings = activeBookings.filter((b) => b.customerId === cus.id && String(b.date).startsWith(currentMonth));
     const usedHours = cusBookings.reduce((sum, b) => sum + b.durationHours, 0);
-    const freeQuota = 8;
+    const freeQuota = Number(cus.meetingRoomMonthlyFreeHours ?? 8);
     const overageHours = Math.max(0, usedHours - freeQuota);
     const overageFee = overageHours * 90000;
     return {
       customer: cus,
       usedHours,
       remainingFree: Math.max(0, freeQuota - usedHours),
+      freeQuota,
       overageHours,
       overageFee,
       bookingsCount: cusBookings.length,
@@ -224,7 +225,7 @@ export default function MeetingRoomsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Manajemen Booking Meeting Room</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Kelola ketersediaan, reservasi, dan kuota 8 jam per bulan untuk setiap tenant.
+            Kelola ketersediaan, reservasi, dan kuota gratis per tenant.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -322,7 +323,7 @@ export default function MeetingRoomsPage() {
                 <p className="text-[11px] text-slate-400">PIC: {item.customer.picName} ({item.customer.phone})</p>
               </div>
               <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-                {item.usedHours} / 8 Jam Terpakai
+                {item.usedHours} / {item.freeQuota} Jam Terpakai
               </span>
             </div>
 
@@ -330,9 +331,9 @@ export default function MeetingRoomsPage() {
             <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
-                  item.usedHours > 8 ? 'bg-rose-500' : 'bg-emerald-500'
+                  item.usedHours > item.freeQuota ? 'bg-rose-500' : 'bg-emerald-500'
                 }`}
-                style={{ width: `${Math.min(100, (item.usedHours / 8) * 100)}%` }}
+                style={{ width: `${item.freeQuota>0?Math.min(100,(item.usedHours/item.freeQuota)*100):100}%` }}
               />
             </div>
 
@@ -417,7 +418,7 @@ export default function MeetingRoomsPage() {
                           </div>
                         ) : (
                           <div className="text-emerald-600 text-[10px] font-medium mt-0.5">
-                            Gratis (Kuota 8 Jam)
+                            Gratis (Kuota {Number(customer?.meetingRoomMonthlyFreeHours ?? 8)} Jam)
                           </div>
                         )}
                       </td>
@@ -539,7 +540,7 @@ export default function MeetingRoomsPage() {
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 leading-relaxed flex items-start gap-2">
                 <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>
-                  Sistem otomatis menghitung durasi dan menambahkan tarif Rp 90.000/jam jika pemakaian akumulasi bulan ini melebihi 8 jam kuota gratis.
+                  Sistem otomatis menghitung durasi dan menambahkan tarif Rp 90.000/jam jika pemakaian bulan ini melebihi kuota gratis tenant.
                 </span>
               </div>
 

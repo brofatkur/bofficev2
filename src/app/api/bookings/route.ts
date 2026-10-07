@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookings, addBooking, cancelBooking, getMeetingRooms, getBranches, getSettings, getBranchDayAvailability } from '@/lib/data-store';
+import { getBookings, addBooking, cancelBooking, getMeetingRooms, getBranches, getCustomers, getSettings, getBranchDayAvailability } from '@/lib/data-store';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -56,12 +56,13 @@ export async function POST(req: NextRequest) {
     let isOverage = false;
     let overageFee = 0;
     if (customerId && bookingType !== 'general') {
-      const settings = await getSettings();
+      const [settings,customers] = await Promise.all([getSettings(),getCustomers()]);
       const period = date.slice(0, 7);
       const usedHours = (await getBookings())
         .filter((booking) => booking.customerId === customerId && booking.status !== 'cancelled' && String(booking.date).slice(0, 7) === period)
         .reduce((total, booking) => total + Number(booking.durationHours || 0), 0);
-      const quota = Number(settings.meetingRoomMonthlyFreeHours || 8);
+      const customer=customers.find(item=>item.id===customerId);
+      const quota = Number(customer?.meetingRoomMonthlyFreeHours ?? settings.meetingRoomMonthlyFreeHours ?? 8);
       const rate = Number(settings.meetingRoomOverageRatePerHour || 90000);
       const previousOverage = Math.max(0, usedHours - quota);
       const newOverage = Math.max(0, usedHours + durationHours - quota);
