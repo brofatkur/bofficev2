@@ -5,7 +5,10 @@ import { getBranches } from '@/lib/data-store';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code')?.toUpperCase();
-  const origin = req.nextUrl.origin;
+  const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+  const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  const origin = configuredOrigin || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : req.nextUrl.origin);
 
   if (!code) {
     return NextResponse.json({ success: false, error: 'Kode cabang required' }, { status: 400 });
