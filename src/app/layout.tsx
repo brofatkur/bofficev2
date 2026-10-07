@@ -4,7 +4,7 @@ import AppShell from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'BOffice - Sistem Manajemen Operasional Virtual Office & Private Office',
-  description: 'Aplikasi Manajemen BOffice: Manajemen Cabang, Profil Penyewa, Booking Ruang Meeting Lintas Cabang, Daftar Hadir Check-In/Out, Invoicing & WhatsApp KirimDev.',
+  description: 'Aplikasi Manajemen BOffice: Manajemen Cabang, Profil Penyewa, Booking Ruang Meeting Lintas Cabang, Invoicing & WhatsApp KirimDev.',
 };
 
 export default function RootLayout({

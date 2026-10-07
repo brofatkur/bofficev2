@@ -18,10 +18,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Cabang tidak ditemukan' }, { status: 404 });
   }
 
-  const checkinUrl = `${origin}/attendance/${branch.code}`;
+  const bookingUrl = `${origin}/book?branch=${encodeURIComponent(branch.id)}`;
 
   try {
-    const qrDataUrl = await QRCode.toDataURL(checkinUrl, {
+    const qrDataUrl = await QRCode.toDataURL(bookingUrl, {
       width: 400,
       margin: 2,
       color: {
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       success: true,
       data: {
         branch,
-        checkinUrl,
+        bookingUrl,
         qrDataUrl,
       },
     });

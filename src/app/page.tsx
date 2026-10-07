@@ -15,10 +15,7 @@ import {
   DollarSign,
   CheckCircle2,
   GitFork,
-  UserCheck,
-  MapPin,
   QrCode,
-  ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -162,12 +159,12 @@ export default function DashboardPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            href="/attendance"
+            href="/book"
             target="_blank"
             className="text-xs bg-emerald-600 hover:bg-emerald-500 font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-600/30 flex items-center gap-2"
           >
             <QrCode className="w-4 h-4" />
-            <span>Portal Check-In Tamu</span>
+            <span>Form Booking Meeting Room</span>
           </Link>
 
           <Link
@@ -355,7 +352,7 @@ export default function DashboardPage() {
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="font-bold text-slate-900 text-sm">Cabang BOffice & Check-In</h2>
+              <h2 className="font-bold text-slate-900 text-sm">Booking Meeting Room per Cabang</h2>
               <Link href="/branches" className="text-xs text-blue-600 font-bold hover:underline">
                 Kelola Cabang
               </Link>
@@ -373,11 +370,11 @@ export default function DashboardPage() {
                   <div className="text-[11px] text-slate-500">{b.city}</div>
                   <div className="pt-1 flex justify-end">
                     <Link
-                      href={`/attendance/${b.code}`}
+                      href={`/book?branch=${b.id}`}
                       target="_blank"
                       className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1"
                     >
-                      <span>Form Check-In Cabang</span>
+                      <span>Form Booking Cabang</span>
                       <ArrowUpRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>

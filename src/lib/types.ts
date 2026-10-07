@@ -186,36 +186,7 @@ export interface MeetingBooking {
   createdAt: string;
 }
 
-// Modul 4: Daftar Hadir & Pemakaian Ruang Meeting (Check-In / Check-Out)
-export interface MeetingAttendee {
-  id: string;
-  phone: string; // normalisasi +62 / 08
-  name: string;
-  organization: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MeetingAttendanceLog {
-  id: string;
-  attendeeId: string;
-  phone: string;
-  name: string;
-  organization: string;
-  branchId: string;
-  roomId: string;
-  bookingId?: string; // wajib tertaut ke booking yang sedang berlangsung sesuai PRD 5.4!
-  title?: string;
-  checkInTime: string; // Server ISO string
-  checkOutTime?: string; // Server ISO string
-  durationMinutes?: number;
-  durationHours?: number;
-  status: 'active' | 'completed';
-  notes?: string;
-  createdAt: string;
-}
-
-// Modul 5: Manajemen Sewa & Kontrak
+// Modul 4: Manajemen Sewa & Kontrak
 export interface Contract {
   id: string;
   contractNumber: string;

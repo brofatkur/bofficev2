@@ -2,13 +2,12 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { AlertCircle, ArrowRight, Building2, CalendarDays, CheckCircle2, Clock, LoaderCircle, MapPin, Phone, RefreshCw, Search, UserCheck, Users } from 'lucide-react';
 
 type BookingBlock = { id: string; startTime: string; endTime: string; status: string };
 type Availability = { room: { id: string; name: string }; bookings: BookingBlock[] };
 const OPEN_MINUTES = 8 * 60, CLOSE_MINUTES = 20 * 60, STEP_MINUTES = 30;
-const DURATIONS = [30, 60, 90, 120];
+const DURATIONS = [30, 60, 120, 180, 240];
 const toMinutes = (time: string) => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
 const toTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 const overlaps = (start: number, end: number, booking: BookingBlock) => start < toMinutes(booking.endTime) && end > toMinutes(booking.startTime);
@@ -128,7 +127,7 @@ function BookingFormInner() {
         {confirmedBooking ? <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" /><h2 className="mt-3 text-xl font-extrabold">Booking berhasil dikonfirmasi</h2><p className="mt-1 text-sm text-slate-600">Slot ini sekarang otomatis tertutup untuk pemesan lain.</p>
           <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 text-left text-sm"><p className="font-bold">{confirmedBooking.branch?.name} · {availability?.room.name}</p><p className="mt-1 text-slate-500">{confirmedBooking.organization} · {confirmedBooking.bookerName}</p><p className="mt-3 font-mono font-bold text-emerald-700">{confirmedBooking.booking.date} · {String(confirmedBooking.booking.startTime).slice(0,5)}–{String(confirmedBooking.booking.endTime).slice(0,5)}</p></div>
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row"><Link href={`/attendance/${confirmedBooking.branch?.code}`} className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white">Buka halaman check-in</Link><button type="button" onClick={() => { setConfirmedBooking(null); loadAvailability(); }} className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700">Booking sesi lain</button></div>
+          <div className="mt-5"><button type="button" onClick={() => { setConfirmedBooking(null); loadAvailability(); }} className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-700">Booking sesi lain</button></div>
         </section> : loading ? <div className="py-16 text-center text-sm text-slate-400">Memuat formulir booking…</div> : <form onSubmit={handleBookingSubmit} className="space-y-6">
           <section className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
             <label className="text-sm font-bold text-slate-700"><span className="mb-1.5 flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-600" />Cabang</span><select value={form.branchId} onChange={event => setForm({ ...form, branchId: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3">{branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name} — {branch.code}</option>)}</select></label>
@@ -164,7 +163,7 @@ function BookingFormInner() {
 
           <button disabled={submitting || !form.startTime || loadingSchedule} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-sm font-black text-white shadow-lg shadow-blue-600/20 disabled:cursor-not-allowed disabled:opacity-50"><span>{submitting ? 'Memeriksa dan menyimpan…' : form.startTime ? `Booking ${form.startTime}–${form.endTime}` : 'Pilih jam tersedia terlebih dahulu'}</span><ArrowRight className="h-4 w-4" /></button>
         </form>}
-        <footer className="mt-6 flex flex-col items-center justify-between gap-2 border-t border-slate-200 pt-4 text-xs text-slate-500 sm:flex-row"><span>Sudah mempunyai booking?</span><Link href="/attendance" className="font-bold text-blue-600">Buka halaman check-in →</Link></footer>
+        <footer className="mt-6 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">Booking menggunakan zona waktu Bali (WITA). Simpan detail jadwal setelah reservasi berhasil.</footer>
       </div>
     </div>
   </main>;

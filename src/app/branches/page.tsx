@@ -32,10 +32,9 @@ export default function BranchesPage() {
 
   // QR Modal state
   const [qrModalBranch, setQrModalBranch] = useState<any | null>(null);
-  const [qrData, setQrData] = useState<{ qrDataUrl: string; checkinUrl: string } | null>(null);
+  const [qrData, setQrData] = useState<{ qrDataUrl: string; bookingUrl: string } | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
-  const [copiedCheckin, setCopiedCheckin] = useState(false);
-  const [copiedBooking, setCopiedBooking] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const [form, setForm] = useState({
     code: '',
@@ -115,8 +114,7 @@ export default function BranchesPage() {
     setQrModalBranch(branch);
     setLoadingQr(true);
     setQrData(null);
-    setCopiedCheckin(false);
-    setCopiedBooking(false);
+    setCopiedLink(false);
     try {
       const res = await fetch(`/api/branches/qrcode?code=${branch.code}`);
       const data = await res.json();
@@ -138,15 +136,10 @@ export default function BranchesPage() {
     a.click();
   };
 
-  const handleCopy = (text: string, type: 'checkin' | 'booking') => {
+  const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    if (type === 'checkin') {
-      setCopiedCheckin(true);
-      setTimeout(() => setCopiedCheckin(false), 2000);
-    } else {
-      setCopiedBooking(true);
-      setTimeout(() => setCopiedBooking(false), 2000);
-    }
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handlePrintStandee = () => {
@@ -158,7 +151,7 @@ export default function BranchesPage() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Standee QR Code Check-In - ${qrModalBranch.name}</title>
+          <title>Standee QR Code Booking - ${qrModalBranch.name}</title>
           <style>
             @page { size: A5 portrait; margin: 15mm; }
             body {
@@ -244,16 +237,16 @@ export default function BranchesPage() {
           <div class="card">
             <img src="/logo.webp" class="logo" alt="BOffice" />
             <div class="brand-sub">Smart Office System</div>
-            <div class="title">CHECK-IN RUANG MEETING</div>
+            <div class="title">BOOKING RUANG MEETING</div>
             <div class="branch">${qrModalBranch.name} (${qrModalBranch.code})</div>
             <div class="qr-wrapper">
               <img src="${qrData.qrDataUrl}" class="qr-img" />
             </div>
             <div class="instruction">Arahkan Kamera HP Anda ke QR Code</div>
             <div class="sub-inst">
-              Pastikan Anda telah melakukan booking sebelumnya.<br/>
-              Masukkan No. HP pemesan untuk mencatat kehadiran & mulai rapat.
-            <div class="footer-url">${qrData.checkinUrl}</div>
+              Pilih tanggal, durasi, dan jam yang masih tersedia.<br/>
+              Lengkapi data pemesan untuk mengonfirmasi reservasi.
+            <div class="footer-url">${qrData.bookingUrl}</div>
           </div>
         </body>
       </html>
@@ -283,7 +276,7 @@ export default function BranchesPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Manajemen Cabang BOffice</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Pengelolaan lokasi cabang di berbagai kota, ruang meeting cabang, serta tautan publik daftar hadir per cabang.
+            Pengelolaan lokasi, meeting room, dan tautan booking publik untuk setiap cabang.
           </p>
         </div>
         <button
@@ -363,12 +356,12 @@ export default function BranchesPage() {
                   </div>
                 </div>
 
-                {/* Public Attendance Link & QR Action Box */}
+                {/* Public Booking Link & QR Action Box */}
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 text-xs">
                   <div className="flex items-center justify-between font-semibold text-slate-700">
                     <span className="flex items-center gap-1.5 text-blue-700">
                       <QrCode className="w-4 h-4" />
-                      <span>Link Check-In:</span>
+                      <span>Link Booking:</span>
                     </span>
                     <div className="flex items-center gap-2">
                       <button
@@ -379,7 +372,7 @@ export default function BranchesPage() {
                         <span>QR & Standee</span>
                       </button>
                       <Link
-                        href={`/attendance/${branch.code}`}
+                        href={`/book?branch=${branch.id}`}
                         target="_blank"
                         className="text-slate-600 hover:text-blue-700 flex items-center gap-1 text-[11px] font-semibold"
                       >
@@ -389,7 +382,7 @@ export default function BranchesPage() {
                     </div>
                   </div>
                   <div className="font-mono text-[11px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200 select-all break-all">
-                    {typeof window !== 'undefined' ? window.location.origin : ''}/attendance/{branch.code}
+                    {typeof window !== 'undefined' ? window.location.origin : ''}/book?branch={branch.id}
                   </div>
                 </div>
               </div>
@@ -483,7 +476,7 @@ export default function BranchesPage() {
               {form.ownershipType === 'cooperation' && <label className="block font-semibold text-slate-700">Mitra Properti<select value={form.propertyPartnerId} onChange={(e) => setForm({ ...form, propertyPartnerId: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"><option value="">Pilih mitra</option>{partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
 
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-[11px] text-blue-800 leading-relaxed">
-                💡 Sistem akan secara otomatis menginisialisasi 1 Ruang Meeting bawaan cabang dan tautan check-in publik <code className="font-bold">/attendance/{form.code || '[KODE]'}</code>.
+                💡 Sistem akan secara otomatis menginisialisasi 1 Ruang Meeting bawaan cabang dan tautan booking publik untuk cabang tersebut.
               </div>
 
               <div className="pt-2 flex justify-end gap-2">
@@ -515,7 +508,7 @@ export default function BranchesPage() {
               <div>
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                   <QrCode className="w-4 h-4 text-blue-600" />
-                  <span>QR Code Check-In Cabang</span>
+                  <span>QR Code Booking Cabang</span>
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   {qrModalBranch.name} ({qrModalBranch.code})
@@ -542,7 +535,7 @@ export default function BranchesPage() {
                       className="w-48 h-48 object-contain"
                     />
                   </div>
-                  <div className="text-xs font-bold text-slate-800">Scan untuk Check-In Ruangan</div>
+                  <div className="text-xs font-bold text-slate-800">Scan untuk Booking Ruangan</div>
                   <p className="text-[10px] text-slate-500 mt-0.5">
                     Pajang QR ini di meja resepsionis atau pintu ruang meeting cabang ini.
                   </p>
@@ -552,50 +545,25 @@ export default function BranchesPage() {
                 <div className="space-y-2 text-xs">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Link Check-In Mandiri:
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        readOnly
-                        value={qrData.checkinUrl}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-slate-600 select-all"
-                      />
-                      <button
-                        onClick={() => handleCopy(qrData.checkinUrl, 'checkin')}
-                        className="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 shrink-0"
-                        title="Salin Link Check-in"
-                      >
-                        {copiedCheckin ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                       Link Form Booking Cabang:
                     </label>
                     <div className="flex items-center gap-1.5">
                       <input
                         type="text"
                         readOnly
-                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/book?branch=${qrModalBranch.id}`}
+                        value={qrData.bookingUrl}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-slate-600 select-all"
                       />
                       <button
-                        onClick={() =>
-                          handleCopy(
-                            `${typeof window !== 'undefined' ? window.location.origin : ''}/book?branch=${qrModalBranch.id}`,
-                            'booking'
-                          )
-                        }
+                        onClick={() => handleCopy(qrData.bookingUrl)}
                         className="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 shrink-0"
                         title="Salin Link Booking"
                       >
-                        {copiedBooking ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   </div>
+
                 </div>
 
                 {/* Actions: Download & Print Standee */}

@@ -6,18 +6,12 @@ import {
   Clock,
   Plus,
   Trash2,
-  Users,
   AlertCircle,
   CheckCircle2,
   FileText,
   X,
   Info,
-  QrCode,
   ExternalLink,
-  UserCheck,
-  Building2,
-  LogIn,
-  LogOut,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -28,8 +22,6 @@ export default function MeetingRoomsPage() {
   const [branches, setBranches] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
-  const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [calendarDate, setCalendarDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' }));
   const [calendarRoomId, setCalendarRoomId] = useState('');
   const [calendarBookings, setCalendarBookings] = useState<any[]>([]);
@@ -37,12 +29,11 @@ export default function MeetingRoomsPage() {
 
   // Booking Form Modal State
   const [showModal, setShowModal] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
   const [form, setForm] = useState({
     roomId: '',
     customerId: '',
     title: '',
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' }),
     startTime: '09:00',
     endTime: '11:00',
   });
@@ -51,17 +42,15 @@ export default function MeetingRoomsPage() {
 
   const fetchData = async () => {
     try {
-      const [roomsRes, custRes, bookRes, attRes, branchRes] = await Promise.all([
+      const [roomsRes, custRes, bookRes, branchRes] = await Promise.all([
         fetch('/api/meeting-rooms').then((r) => r.json()),
         fetch('/api/customers').then((r) => r.json()),
         fetch('/api/bookings').then((r) => r.json()),
-        fetch('/api/attendance').then((r) => r.json()),
         fetch('/api/branches').then((r) => r.json()),
       ]);
       setRooms(roomsRes.data || []);
       setCustomers(custRes.data || []);
       setBookings(bookRes.data || []);
-      setAttendanceLogs(attRes.data || []);
       setBranches(branchRes.data || []);
       if (roomsRes.data?.length) {
         setForm((prev) => ({ ...prev, roomId: roomsRes.data[0].id }));
@@ -72,8 +61,6 @@ export default function MeetingRoomsPage() {
       }
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -152,9 +139,12 @@ export default function MeetingRoomsPage() {
   };
 
   // Calculate Customer Stats
-  const currentMonth = '2026-09';
+  const currentMonth = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' }).slice(0, 7);
+  const activeBookings = bookings
+    .filter((booking) => booking.status !== 'cancelled')
+    .sort((a, b) => `${String(a.date).slice(0, 10)} ${a.startTime}`.localeCompare(`${String(b.date).slice(0, 10)} ${b.startTime}`));
   const customerQuotaSummary = customers.map((cus) => {
-    const cusBookings = bookings.filter((b) => b.customerId === cus.id && b.date.startsWith(currentMonth));
+    const cusBookings = activeBookings.filter((b) => b.customerId === cus.id && String(b.date).startsWith(currentMonth));
     const usedHours = cusBookings.reduce((sum, b) => sum + b.durationHours, 0);
     const freeQuota = 8;
     const overageHours = Math.max(0, usedHours - freeQuota);
@@ -168,8 +158,6 @@ export default function MeetingRoomsPage() {
       bookingsCount: cusBookings.length,
     };
   });
-
-  const activeVisitors = attendanceLogs.filter((l) => l.status === 'active');
 
   const selectedCalendarRoom = rooms.find((room) => room.id === calendarRoomId);
   const selectedCalendarBranch = branches.find((branch) => branch.id === selectedCalendarRoom?.branchId);
@@ -221,9 +209,9 @@ export default function MeetingRoomsPage() {
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Manajemen Booking & Daftar Hadir Meeting Room</h1>
+          <h1 className="text-xl font-bold text-slate-900">Manajemen Booking Meeting Room</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Jadwal penggunaan ruang rapat, kuota 8 jam/bulan per tenant (overage Rp 90rb/jam), dan portal publik Check-in / Check-out stopwatch.
+            Kelola ketersediaan, reservasi, dan kuota 8 jam per bulan untuk setiap tenant.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -235,16 +223,6 @@ export default function MeetingRoomsPage() {
             <CalendarDays className="w-4 h-4 text-blue-600" />
             <span>Form Booking Publik</span>
             <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-          </Link>
-
-          <Link
-            href="/attendance"
-            target="_blank"
-            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
-          >
-            <QrCode className="w-4 h-4 text-emerald-400" />
-            <span>Portal Check-In Publik</span>
-            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
           </Link>
 
           <button
@@ -320,37 +298,6 @@ export default function MeetingRoomsPage() {
         </div>
       </section>
 
-      {/* Live Active Attendees Banner */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-5 rounded-2xl border border-slate-700 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm">Pengunjung Aktif Saat Ini di Meeting Room</h3>
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            </div>
-            <p className="text-slate-400 text-xs mt-0.5">
-              {activeVisitors.length > 0
-                ? `${activeVisitors.length} orang sedang berada di dalam ruang rapat (Stopwatch berjalan)`
-                : 'Tidak ada pengunjung yang sedang check-in saat ini.'}
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowQrModal(true)}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-600/30 flex items-center gap-2 shrink-0"
-        >
-          <QrCode className="w-4 h-4" />
-          <span>Tampilkan QR Code Check-In</span>
-        </button>
-      </div>
-
       {/* Quota Summary per Tenant Banner Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {customerQuotaSummary.map((item) => (
@@ -402,83 +349,6 @@ export default function MeetingRoomsPage() {
         ))}
       </div>
 
-      {/* Attendance Log Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 font-bold text-slate-900 text-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-emerald-600" />
-            <span>Riwayat Daftar Hadir & Stopwatch Check-In Pengunjung</span>
-          </div>
-          <span className="text-xs text-slate-500 font-normal">
-            Total {attendanceLogs.length} Catatan Masuk/Keluar
-          </span>
-        </div>
-
-        {loading ? (
-          <div className="py-8 text-center text-slate-400 text-xs">Memuat data daftar hadir...</div>
-        ) : attendanceLogs.length === 0 ? (
-          <div className="py-8 text-center text-slate-400 text-xs">Belum ada catatan daftar hadir.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
-                  <th className="p-4">Pengunjung / No. HP</th>
-                  <th className="p-4">Asal Lembaga</th>
-                  <th className="p-4">Ruangan</th>
-                  <th className="p-4">Waktu Masuk & Keluar</th>
-                  <th className="p-4">Durasi Terhitung</th>
-                  <th className="p-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {attendanceLogs.map((log) => {
-                  const room = rooms.find((r) => r.id === log.roomId);
-                  const isActive = log.status === 'active';
-
-                  return (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-bold text-slate-900">
-                        <div>{log.name}</div>
-                        <div className="text-[11px] font-mono font-normal text-slate-400">{log.phone}</div>
-                      </td>
-                      <td className="p-4 font-medium text-slate-800">{log.organization}</td>
-                      <td className="p-4 font-medium text-slate-700">{room?.name || 'Meeting Room'}</td>
-                      <td className="p-4">
-                        <div className="text-slate-800 font-medium">
-                          Masuk: <span className="font-mono">{new Date(log.checkInTime).toLocaleTimeString('id-ID')}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          Keluar: {log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('id-ID') : '-'}
-                        </div>
-                      </td>
-                      <td className="p-4 font-extrabold text-slate-900">
-                        {isActive ? (
-                          <span className="text-emerald-600 animate-pulse">Stopwatch Berjalan...</span>
-                        ) : (
-                          `${log.durationMinutes} Menit (${log.durationHours} Jam)`
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                            isActive
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {isActive ? 'Sedang di Ruangan' : 'Selesai'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       {/* Booking List Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -486,7 +356,7 @@ export default function MeetingRoomsPage() {
           <span>Jadwal Reservasi Meeting Room (Bulan Berjalan)</span>
         </div>
 
-        {bookings.length === 0 ? (
+        {activeBookings.length === 0 ? (
           <div className="py-12 text-center text-slate-400 text-xs">Belum ada booking meeting room terdaftar.</div>
         ) : (
           <div className="overflow-x-auto">
@@ -502,7 +372,7 @@ export default function MeetingRoomsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {bookings.map((booking) => {
+                {activeBookings.map((booking) => {
                   const room = rooms.find((r) => r.id === booking.roomId);
                   const customer = customers.find((c) => c.id === booking.customerId);
 
@@ -519,7 +389,8 @@ export default function MeetingRoomsPage() {
                         {room?.name || 'Meeting Room'}
                       </td>
                       <td className="p-4 font-semibold text-slate-900">
-                        {customer?.companyName || 'N/A'}
+                        <div>{customer?.companyName || booking.bookerName || 'Customer umum'}</div>
+                        {booking.bookerPhone && <div className="mt-0.5 font-mono text-[10px] font-normal text-slate-400">{booking.bookerPhone}</div>}
                       </td>
                       <td className="p-4 text-slate-700">
                         {booking.title}
@@ -553,48 +424,6 @@ export default function MeetingRoomsPage() {
           </div>
         )}
       </div>
-
-      {/* QR Code Printable Modal */}
-      {showQrModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-sm">QR Code Check-In Ruang Meeting</h3>
-              <button onClick={() => setShowQrModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center justify-center space-y-3">
-              <div className="w-44 h-44 bg-slate-900 rounded-xl flex flex-col items-center justify-center p-3 text-white">
-                <QrCode className="w-32 h-32 text-emerald-400" />
-                <span className="text-[10px] font-mono mt-1 text-slate-300">SCAN ME</span>
-              </div>
-              <p className="text-xs font-semibold text-slate-800">
-                Buka Link Publik Check-In:
-              </p>
-              <Link
-                href="/attendance"
-                target="_blank"
-                className="text-xs text-emerald-700 font-bold underline break-all hover:text-emerald-800"
-              >
-                /attendance
-              </Link>
-            </div>
-
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              Cetak QR Code ini dan tempatkan di depan pintu Meeting Room agar pengunjung dapat langsung melakukan Check-In & Check-Out mandiri.
-            </p>
-
-            <button
-              onClick={() => window.print()}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20"
-            >
-              Cetak QR Code Ini
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Booking Form Modal */}
       {showModal && (
@@ -655,6 +484,7 @@ export default function MeetingRoomsPage() {
                 <input
                   type="date"
                   required
+                  min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' })}
                   value={form.date}
                   onChange={(e) => setForm({ ...form, date: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -667,6 +497,9 @@ export default function MeetingRoomsPage() {
                   <input
                     type="time"
                     required
+                    min="08:00"
+                    max="19:30"
+                    step={1800}
                     value={form.startTime}
                     onChange={(e) => setForm({ ...form, startTime: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -677,6 +510,9 @@ export default function MeetingRoomsPage() {
                   <input
                     type="time"
                     required
+                    min="08:30"
+                    max="20:00"
+                    step={1800}
                     value={form.endTime}
                     onChange={(e) => setForm({ ...form, endTime: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"

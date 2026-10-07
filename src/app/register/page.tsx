@@ -114,10 +114,10 @@ export default function TenantRegistrationPage() {
             </div>
             <div className="pt-2">
               <Link
-                href="/attendance"
+                href="/book"
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-blue-600/20"
               >
-                <span>Lihat Portal Daftar Hadir Meeting Room</span>
+                <span>Booking Meeting Room</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>

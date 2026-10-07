@@ -16,7 +16,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Standalone public pages without admin sidebar or header
   const isPublicPage =
     pathname.startsWith('/attendance') ||
-    pathname.startsWith('/checkin') ||
     pathname.startsWith('/book') ||
     pathname.startsWith('/register') ||
     pathname === '/login' ||
@@ -39,7 +38,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const loc = window.location.pathname;
     if (
       loc.startsWith('/attendance') ||
-      loc.startsWith('/checkin') ||
       loc.startsWith('/book') ||
       loc.startsWith('/register') ||
       loc === '/login' ||

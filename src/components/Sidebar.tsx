@@ -13,7 +13,6 @@ import {
   PackageSearch,
   Handshake,
   Landmark,
-  ShieldCheck,
   UserPlus,
   QrCode,
   LogOut,
@@ -89,13 +88,13 @@ export default function Sidebar() {
           </div>
           <div className="space-y-1">
             <Link
-              href="/attendance"
+              href="/book"
               target="_blank"
               className="flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-emerald-400 hover:bg-slate-900 transition-all font-medium"
             >
               <div className="flex items-center gap-2">
                 <QrCode className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Portal Check-In Rapat</span>
+                <span>Form Booking Meeting Room</span>
               </div>
               <span className="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-800">
                 Publik

@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAdminClient } from '@insforge/sdk';
-import { AppSettings, Branch, Contract, Customer, FinancialTransaction, Invoice, InvoiceItem, InvoicePayment, Lead, MeetingAttendanceLog, MeetingAttendee, MeetingBooking, MeetingRoom, OfficeSpace, Partner, Product, ProductCategory, ProductVendorPrice, TotalTaxItem, WhatsAppLog } from './types';
+import { AppSettings, Branch, Contract, Customer, FinancialTransaction, Invoice, InvoiceItem, InvoicePayment, Lead, MeetingBooking, MeetingRoom, OfficeSpace, Partner, Product, ProductCategory, ProductVendorPrice, TotalTaxItem, WhatsAppLog } from './types';
 
 let adminClient: ReturnType<typeof createAdminClient> | null = null;
 function getInsforge() {
@@ -44,7 +44,7 @@ export async function getBranchByCode(code:string){ const {data,error}=await get
 export async function addBranch(branch:Omit<Branch,'id'|'createdAt'>){
   const code=branch.code.toUpperCase().trim();
   const existing=await getBranchByCode(code);
-  const created=existing || await insertOne<Branch>('branches',{...branch,phone:normalizePhone(branch.phone||''),status:branch.status||'active',id:makeId('br'),code,publicAttendanceUrl:`/attendance/${code}`});
+  const created=existing || await insertOne<Branch>('branches',{...branch,phone:normalizePhone(branch.phone||''),status:branch.status||'active',id:makeId('br'),code,publicAttendanceUrl:`/book?branch=${encodeURIComponent(code)}`});
   const {data:room,error:roomLookupError}=await getInsforge().database.from('meeting_rooms').select('id').eq('branch_id',created.id).maybeSingle();
   assertOk(roomLookupError);
   if(!room){
@@ -129,29 +129,6 @@ export async function addBooking(value:Omit<MeetingBooking,'id'|'createdAt'|'sta
   }
 }
 export async function cancelBooking(id:string){ return Boolean(await updateOne('bookings',id,{status:'cancelled'})); }
-export async function getBookingsForCheckin(branchId:string,phone:string){
-  const norm=normalizePhone(phone),today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Makassar'});
-  const bookings=await getBookings(branchId);
-  const customers=await getCustomers(branchId);
-  const custMap=new Map(customers.map(c=>[c.id,c]));
-  return bookings.filter(b=>{
-    const bookingDate=String(b.date).slice(0,10);
-    if(b.branchId!==branchId||b.status==='cancelled'||bookingDate<today)return false;
-    if(b.bookerPhone&&normalizePhone(b.bookerPhone)===norm)return true;
-    const cust=b.customerId?custMap.get(b.customerId):undefined;
-    if(cust&&normalizePhone(cust.phone)===norm)return true;
-    return false;
-  }).sort((a,b)=>`${String(a.date).slice(0,10)} ${a.startTime}`.localeCompare(`${String(b.date).slice(0,10)} ${b.startTime}`));
-}
-
-export async function getAttendeeByPhone(phone:string){ const {data,error}=await getInsforge().database.from('attendees').select().eq('phone',normalizePhone(phone)).maybeSingle(); assertOk(error); return data?fromRow<MeetingAttendee>(data as any):null; }
-export async function upsertAttendee(value:{phone:string;name:string;organization:string}){ const phone=normalizePhone(value.phone),current=await getAttendeeByPhone(phone); if(current)return (await updateOne<MeetingAttendee>('attendees',current.id,{...value,phone,updatedAt:new Date().toISOString()}))!; return insertOne<MeetingAttendee>('attendees',{...value,phone,id:makeId('att')}); }
-export async function findOngoingBookingAtBranch(branchId:string,dateStr?:string,timeStr?:string){ const now=new Date(),date=dateStr||now.toISOString().slice(0,10),time=timeStr||now.toTimeString().slice(0,5); const {data,error}=await getInsforge().database.from('bookings').select().eq('branch_id',branchId).eq('date',date).eq('status','confirmed').order('start_time').limit(100); assertOk(error); const rows=((data||[]) as any[]).map(fromRow<MeetingBooking>); return rows.find(b=>b.startTime.slice(0,5)<=time&&b.endTime.slice(0,5)>=time)||rows.find(b=>b.startTime.slice(0,5)>time)||rows[0]||null; }
-export async function getActiveAttendanceByPhone(phone:string){ const {data,error}=await getInsforge().database.from('attendance_logs').select().eq('phone',normalizePhone(phone)).eq('status','active').maybeSingle(); assertOk(error); return data?fromRow<MeetingAttendanceLog>(data as any):null; }
-export async function checkInAttendee(value:{phone:string;name:string;organization:string;branchId:string;roomId:string;bookingId?:string;title?:string}){ const attendee=await upsertAttendee(value),active=await getActiveAttendanceByPhone(value.phone); if(active){const bookings=await getBookings(); return {log:active,attendee,linkedBooking:bookings.find(b=>b.id===active.bookingId)||null};} let linked:MeetingBooking|null=null; if(value.bookingId){const {data,error}=await getInsforge().database.from('bookings').select().eq('id',value.bookingId).maybeSingle(); assertOk(error); linked=data?fromRow<MeetingBooking>(data as any):null;}else linked=await findOngoingBookingAtBranch(value.branchId); const log=await insertOne<MeetingAttendanceLog>('attendance_logs',{id:makeId('log'),attendeeId:attendee.id,phone:normalizePhone(value.phone),name:value.name,organization:value.organization,branchId:value.branchId,roomId:value.roomId,bookingId:value.bookingId||linked?.id,title:value.title||linked?.title||`Sesi Rapat ${value.organization}`,checkInTime:new Date().toISOString(),status:'active'}); return {log,attendee,linkedBooking:linked}; }
-export async function checkOutAttendee(id:string){ const {data,error}=await getInsforge().database.from('attendance_logs').select().eq('id',id).maybeSingle(); assertOk(error); if(!data)return null; const log=fromRow<MeetingAttendanceLog>(data as any),now=new Date(),minutes=Math.max(1,Math.round((now.getTime()-new Date(log.checkInTime).getTime())/60000)); return updateOne<MeetingAttendanceLog>('attendance_logs',id,{checkOutTime:now.toISOString(),durationMinutes:minutes,durationHours:Number((minutes/60).toFixed(2)),status:'completed'}); }
-export async function getAttendanceLogs(branchId?:string){ return list<MeetingAttendanceLog>('attendance_logs',branchId); }
-
 export async function getContracts(branchId?:string){ return list<Contract>('contracts',branchId); }
 export async function addContract(value:Omit<Contract,'id'|'createdAt'>){ return insertOne<Contract>('contracts',{...value,id:makeId('ctr')}); }
 export async function updateContract(id:string,updates:Partial<Contract>){ return updateOne<Contract>('contracts',id,updates); }

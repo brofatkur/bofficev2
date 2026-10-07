@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookings, addBooking, cancelBooking, getMeetingRooms } from '@/lib/data-store';
+import { getBookings, addBooking, cancelBooking, getMeetingRooms, getBranches, getSettings } from '@/lib/data-store';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -21,28 +21,48 @@ export async function POST(req: NextRequest) {
     }
 
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
-    if (date < today) return NextResponse.json({ success: false, error: 'Tanggal booking tidak boleh sudah lewat.' }, { status: 400 });
-    if (startTime >= endTime) return NextResponse.json({ success: false, error: 'Jam selesai harus setelah jam mulai.' }, { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today) return NextResponse.json({ success: false, error: 'Tanggal booking tidak valid atau sudah lewat.' }, { status: 400 });
+    if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) || startTime >= endTime) return NextResponse.json({ success: false, error: 'Jam mulai dan selesai tidak valid.' }, { status: 400 });
     if (bookingType === 'general' && (!bookerName?.trim() || !bookerPhone?.trim())) {
       return NextResponse.json({ success: false, error: 'Nama dan nomor HP customer umum wajib diisi.' }, { status: 400 });
     }
 
-    // Auto-resolve roomId if not selected (1 branch has 1 room in MVP per PRD 5.3)
-    if (!roomId) {
-      const rooms = await getMeetingRooms(branchId);
-      if (rooms.length > 0) {
-        roomId = rooms[0].id;
-      } else {
-        roomId = 'mr_' + branchId;
-      }
-    }
+    const branch = (await getBranches()).find((item) => item.id === branchId && item.status === 'active');
+    if (!branch) return NextResponse.json({ success: false, error: 'Cabang tidak ditemukan atau sedang tidak aktif.' }, { status: 404 });
+
+    const rooms = await getMeetingRooms(branchId);
+    const selectedRoom = roomId ? rooms.find((room) => room.id === roomId) : rooms[0];
+    if (!selectedRoom) return NextResponse.json({ success: false, error: 'Meeting room aktif pada cabang ini tidak ditemukan.' }, { status: 404 });
+    roomId = selectedRoom.id;
 
     // Calculate duration
     const startH = parseInt(startTime.split(':')[0], 10);
     const startM = parseInt(startTime.split(':')[1], 10);
     const endH = parseInt(endTime.split(':')[0], 10);
     const endM = parseInt(endTime.split(':')[1], 10);
-    const durationHours = Math.max(0.5, parseFloat(((endH * 60 + endM - (startH * 60 + startM)) / 60).toFixed(2)));
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    const durationMinutes = endMinutes - startMinutes;
+    if (startMinutes < 8 * 60 || endMinutes > 20 * 60) return NextResponse.json({ success: false, error: 'Booking hanya tersedia pukul 08.00–20.00 WITA.' }, { status: 400 });
+    if (startM % 30 !== 0 || endM % 30 !== 0 || durationMinutes < 30 || durationMinutes > 240) return NextResponse.json({ success: false, error: 'Durasi booking harus 30 menit sampai 4 jam dalam interval 30 menit.' }, { status: 400 });
+    const durationHours = Number((durationMinutes / 60).toFixed(2));
+
+    let isOverage = false;
+    let overageFee = 0;
+    if (customerId && bookingType !== 'general') {
+      const settings = await getSettings();
+      const period = date.slice(0, 7);
+      const usedHours = (await getBookings())
+        .filter((booking) => booking.customerId === customerId && booking.status !== 'cancelled' && String(booking.date).slice(0, 7) === period)
+        .reduce((total, booking) => total + Number(booking.durationHours || 0), 0);
+      const quota = Number(settings.meetingRoomMonthlyFreeHours || 8);
+      const rate = Number(settings.meetingRoomOverageRatePerHour || 90000);
+      const previousOverage = Math.max(0, usedHours - quota);
+      const newOverage = Math.max(0, usedHours + durationHours - quota);
+      const chargeableHours = Math.max(0, newOverage - previousOverage);
+      isOverage = chargeableHours > 0;
+      overageFee = Math.round(chargeableHours * rate);
+    }
 
     const result = await addBooking({
       branchId,
@@ -56,13 +76,15 @@ export async function POST(req: NextRequest) {
       endTime,
       durationHours,
       createdBy: createdBy || 'admin',
+      isOverage,
+      overageFee,
     });
 
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 409 });
     }
 
-    return NextResponse.json({ success: true, data: result.booking });
+    return NextResponse.json({ success: true, data: result.booking, overageAdded: isOverage });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
