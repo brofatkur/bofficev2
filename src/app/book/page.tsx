@@ -5,8 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { AlertCircle, ArrowRight, Building2, CalendarDays, CheckCircle2, Clock, LoaderCircle, MapPin, Phone, RefreshCw, Search, UserCheck, Users } from 'lucide-react';
 
 type BookingBlock = { id: string; startTime: string; endTime: string; status: string };
-type Availability = { room: { id: string; name: string }; bookings: BookingBlock[] };
-const OPEN_MINUTES = 8 * 60, CLOSE_MINUTES = 20 * 60, STEP_MINUTES = 30;
+type Availability = { room: { id: string; name: string }; bookings: BookingBlock[]; schedule: { isOpen: boolean; openTime?: string; closeTime?: string; reason?: 'closed_day'|'national_holiday'; holidayName?: string } };
+const STEP_MINUTES = 30;
 const DURATIONS = [30, 60, 120, 180, 240];
 const toMinutes = (time: string) => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
 const toTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
@@ -81,13 +81,15 @@ function BookingFormInner() {
   useEffect(() => { loadAvailability(); }, [loadAvailability]);
 
   const slots = useMemo(() => {
+    if(!availability?.schedule.isOpen||!availability.schedule.openTime||!availability.schedule.closeTime)return [];
     const baliNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Makassar' }));
     const currentMinutes = baliNow.getHours() * 60 + baliNow.getMinutes();
-    return Array.from({ length: (CLOSE_MINUTES - OPEN_MINUTES) / STEP_MINUTES }, (_, index) => {
-      const start = OPEN_MINUTES + index * STEP_MINUTES, end = start + duration;
+    const openMinutes=toMinutes(availability.schedule.openTime),closeMinutes=toMinutes(availability.schedule.closeTime);
+    return Array.from({ length: Math.max(0,Math.ceil((closeMinutes-openMinutes)/STEP_MINUTES)) }, (_, index) => {
+      const start = openMinutes + index * STEP_MINUTES, end = start + duration;
       const past = form.date === todayInBali() && start <= currentMinutes;
       const conflicting = availability?.bookings.find(booking => overlaps(start, end, booking));
-      return { time: toTime(start), endTime: toTime(end), available: !past && end <= CLOSE_MINUTES && !conflicting, conflicting };
+      return { time: toTime(start), endTime: toTime(end), available: !past && end <= closeMinutes && !conflicting, conflicting };
     });
   }, [availability, duration, form.date]);
 
@@ -136,10 +138,10 @@ function BookingFormInner() {
           </section>
 
           <section>
-            <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="flex items-center gap-2 font-extrabold"><Clock className="h-5 w-5 text-blue-600" />Pilih jam mulai</h2><p className="mt-1 text-xs text-slate-500">Operasional 08:00–20:00, interval 30 menit.</p></div><button type="button" onClick={loadAvailability} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600"><RefreshCw className={`h-3.5 w-3.5 ${loadingSchedule ? 'animate-spin' : ''}`} />Perbarui jadwal</button></div>
+            <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="flex items-center gap-2 font-extrabold"><Clock className="h-5 w-5 text-blue-600" />Pilih jam mulai</h2><p className="mt-1 text-xs text-slate-500">{availability?.schedule.isOpen?`Operasional ${availability.schedule.openTime}–${availability.schedule.closeTime} WITA, interval 30 menit.`:'Cabang tidak beroperasi pada tanggal ini.'}</p></div><button type="button" onClick={loadAvailability} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600"><RefreshCw className={`h-3.5 w-3.5 ${loadingSchedule ? 'animate-spin' : ''}`} />Perbarui jadwal</button></div>
             <div className="mt-3 flex flex-wrap gap-2"><span className="py-2 text-xs font-semibold text-slate-500">Durasi:</span>{DURATIONS.map(minutes => <button type="button" key={minutes} onClick={() => { setDuration(minutes); setForm(current => ({ ...current, startTime: '', endTime: '' })); }} className={`rounded-lg border px-3 py-2 text-xs font-bold ${duration === minutes ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{minutes < 60 ? '30 menit' : `${minutes / 60} jam`}</button>)}</div>
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">{slots.map(slot => <button type="button" key={slot.time} disabled={!slot.available || loadingSchedule} onClick={() => setForm(current => ({ ...current, startTime: slot.time, endTime: slot.endTime }))} className={`rounded-xl border px-2 py-3 text-center transition ${form.startTime === slot.time ? 'border-blue-600 bg-blue-600 text-white shadow-md' : slot.available ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-500' : slot.conflicting ? 'cursor-not-allowed border-rose-200 bg-rose-50 text-rose-500 line-through' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'}`}><span className="block text-sm font-black">{slot.time}</span><span className="mt-0.5 block text-[10px] font-semibold">{slot.available ? `s/d ${slot.endTime}` : slot.conflicting ? 'Terbooking' : 'Tidak tersedia'}</span></button>)}</div>
-            {availability?.bookings.length ? <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 p-3"><p className="text-xs font-bold text-rose-700">Jadwal yang sudah terbooking:</p><div className="mt-2 flex flex-wrap gap-2">{availability.bookings.map(booking => <span key={booking.id} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-rose-600 ring-1 ring-rose-200">{booking.startTime}–{booking.endTime}</span>)}</div></div> : !loadingSchedule && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">Belum ada booking pada tanggal ini. Semua slot operasional masih tersedia.</p>}
+            {availability?.schedule.isOpen?<div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">{slots.map(slot => <button type="button" key={slot.time} disabled={!slot.available || loadingSchedule} onClick={() => setForm(current => ({ ...current, startTime: slot.time, endTime: slot.endTime }))} className={`rounded-xl border px-2 py-3 text-center transition ${form.startTime === slot.time ? 'border-blue-600 bg-blue-600 text-white shadow-md' : slot.available ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-500' : slot.conflicting ? 'cursor-not-allowed border-rose-200 bg-rose-50 text-rose-500 line-through' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'}`}><span className="block text-sm font-black">{slot.time}</span><span className="mt-0.5 block text-[10px] font-semibold">{slot.available ? `s/d ${slot.endTime}` : slot.conflicting ? 'Terbooking' : 'Tidak tersedia'}</span></button>)}</div>:!loadingSchedule&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">{availability?.schedule.reason==='national_holiday'?`Tutup karena libur nasional${availability.schedule.holidayName?`: ${availability.schedule.holidayName}`:''}.`:'Cabang tutup pada hari ini.'}</div>}
+            {availability?.schedule.isOpen&&(availability.bookings.length ? <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 p-3"><p className="text-xs font-bold text-rose-700">Jadwal yang sudah terbooking:</p><div className="mt-2 flex flex-wrap gap-2">{availability.bookings.map(booking => <span key={booking.id} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-rose-600 ring-1 ring-rose-200">{booking.startTime}–{booking.endTime}</span>)}</div></div> : !loadingSchedule && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">Belum ada booking pada tanggal ini. Semua slot operasional masih tersedia.</p>)}
           </section>
 
           <section className="space-y-4 border-t border-slate-200 pt-6">

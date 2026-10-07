@@ -21,6 +21,7 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Manajemen Cabang', href: '/branches', icon: GitFork, badge: 'Multi-Kota' },
+  { name: 'User & Jam Operasional', href: '/users', icon: UserPlus },
   { name: 'Manajemen Customer', href: '/customers', icon: Users },
   { name: 'Manajemen Produk', href: '/products', icon: PackageSearch },
   { name: 'Manajemen Mitra', href: '/partners', icon: Handshake },

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookings, addBooking, cancelBooking, getMeetingRooms, getBranches, getSettings } from '@/lib/data-store';
+import { getBookings, addBooking, cancelBooking, getMeetingRooms, getBranches, getSettings, getBranchDayAvailability } from '@/lib/data-store';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -43,8 +43,14 @@ export async function POST(req: NextRequest) {
     const startMinutes = startH * 60 + startM;
     const endMinutes = endH * 60 + endM;
     const durationMinutes = endMinutes - startMinutes;
-    if (startMinutes < 8 * 60 || endMinutes > 20 * 60) return NextResponse.json({ success: false, error: 'Booking hanya tersedia pukul 08.00–20.00 WITA.' }, { status: 400 });
     if (startM % 30 !== 0 || endM % 30 !== 0 || durationMinutes < 30 || durationMinutes > 240) return NextResponse.json({ success: false, error: 'Durasi booking harus 30 menit sampai 4 jam dalam interval 30 menit.' }, { status: 400 });
+    const schedule=await getBranchDayAvailability(branchId,date);
+    if(!schedule.isOpen){
+      const message=schedule.reason==='national_holiday'?`Cabang tutup pada libur nasional${schedule.holidayName?`: ${schedule.holidayName}`:''}.`:'Cabang tutup pada hari yang dipilih.';
+      return NextResponse.json({success:false,error:message},{status:400});
+    }
+    const scheduleOpen=String(schedule.openTime||'00:00').slice(0,5),scheduleClose=String(schedule.closeTime||'00:00').slice(0,5);
+    if(startTime<scheduleOpen||endTime>scheduleClose)return NextResponse.json({success:false,error:`Booking hanya tersedia pukul ${scheduleOpen}–${scheduleClose} WITA pada hari tersebut.`},{status:400});
     const durationHours = Number((durationMinutes / 60).toFixed(2));
 
     let isOverage = false;

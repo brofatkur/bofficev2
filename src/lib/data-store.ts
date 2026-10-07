@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAdminClient } from '@insforge/sdk';
-import { AppSettings, Branch, Contract, Customer, FinancialTransaction, Invoice, InvoiceItem, InvoicePayment, Lead, MeetingBooking, MeetingRoom, OfficeSpace, Partner, Product, ProductCategory, ProductVendorPrice, TotalTaxItem, WhatsAppLog } from './types';
+import { AppSettings, Branch, BranchDayAvailability, BranchWorkingHour, Contract, Customer, FinancialTransaction, Invoice, InvoiceItem, InvoicePayment, Lead, MeetingBooking, MeetingRoom, OfficeSpace, Partner, Product, ProductCategory, ProductVendorPrice, TotalTaxItem, WhatsAppLog } from './types';
 
 let adminClient: ReturnType<typeof createAdminClient> | null = null;
 function getInsforge() {
@@ -14,7 +14,7 @@ function getInsforge() {
 const MAX_ROWS = 1000;
 
 const keys: Record<string, string> = {
-  company_name:'companyName',entity_type:'entityType',service_type:'serviceType',branch_id:'branchId',pic_name:'picName',start_date:'startDate',lead_id:'leadId',interest_type:'interestType',billing_cycle:'billingCycle',estimated_value:'estimatedValue',updated_at:'updatedAt',created_at:'createdAt',public_attendance_url:'publicAttendanceUrl',monthly_price:'monthlyPrice',yearly_price:'yearlyPrice',current_tenant_id:'currentTenantId',hourly_overage_rate:'hourlyOverageRate',room_id:'roomId',customer_id:'customerId',start_time:'startTime',end_time:'endTime',duration_hours:'durationHours',created_by:'createdBy',is_overage:'isOverage',overage_fee:'overageFee',attendee_id:'attendeeId',booking_id:'bookingId',check_in_time:'checkInTime',check_out_time:'checkOutTime',duration_minutes:'durationMinutes',contract_number:'contractNumber',office_id:'officeId',rental_type:'rentalType',end_date:'endDate',rent_price:'rentPrice',auto_renew:'autoRenew',last_wa_reminder_sent_at:'lastWaReminderSentAt',invoice_number:'invoiceNumber',contract_id:'contractId',issue_date:'issueDate',due_date:'dueDate',total_discount_type:'totalDiscountType',total_discount_value:'totalDiscountValue',total_discount_amount:'totalDiscountAmount',total_tax_amount:'totalTaxAmount',total_amount:'totalAmount',total_paid:'totalPaid',remaining_amount:'remainingAmount',auto_notification:'autoNotification',last_wa_sent_at:'lastWaSentAt',invoice_id:'invoiceId',item_type:'itemType',discount_type:'discountType',discount_value:'discountValue',discount_amount:'discountAmount',tax_name:'taxName',tax_percent:'taxPercent',tax_amount:'taxAmount',receipt_number:'receiptNumber',payment_date:'paymentDate',payment_method:'paymentMethod',recorded_by:'recordedBy',message_type:'messageType',sent_at:'sentAt',kirimdev_api_key:'kirimdevApiKey',kirimdev_phone_number_id:'kirimdevPhoneNumberId',company_address:'companyAddress',company_phone:'companyPhone',bank_account_info:'bankAccountInfo',meeting_room_monthly_free_hours:'meetingRoomMonthlyFreeHours',meeting_room_overage_rate_per_hour:'meetingRoomOverageRatePerHour',auto_notification_enabled:'autoNotificationEnabled',reminder_intervals:'reminderIntervals',ownership_type:'ownershipType',property_partner_id:'propertyPartnerId',property_share_percent:'propertySharePercent',user_id:'userId',onboarding_status:'onboardingStatus',profile_completed_at:'profileCompletedAt',partner_type:'partnerType',contact_name:'contactName',tax_id:'taxId',commission_default_model:'commissionDefaultModel',commission_default_rate:'commissionDefaultRate',is_active:'isActive',category_id:'categoryId',variant_name:'variantName',sale_price:'salePrice',product_id:'productId',vendor_id:'vendorId',vendor_price_id:'vendorPriceId',component_name:'componentName',service_variant:'serviceVariant',unit_cost:'unitCost',valid_from:'validFrom',valid_until:'validUntil',is_preferred:'isPreferred',estimated_hpp:'estimatedHpp',actual_hpp:'actualHpp',gross_profit:'grossProfit',margin_percent:'marginPercent',reseller_id:'resellerId',commission_model:'commissionModel',commission_rate:'commissionRate',boffice_net_price:'bofficeNetPrice',reseller_commission:'resellerCommission',transaction_date:'transactionDate',source_type:'sourceType',source_id:'sourceId',partner_id:'partnerId',proof_url:'proofUrl',proof_key:'proofKey',approved_by:'approvedBy',approved_at:'approvedAt',booker_name:'bookerName',booker_phone:'bookerPhone'
+  company_name:'companyName',entity_type:'entityType',service_type:'serviceType',branch_id:'branchId',pic_name:'picName',start_date:'startDate',lead_id:'leadId',interest_type:'interestType',billing_cycle:'billingCycle',estimated_value:'estimatedValue',updated_at:'updatedAt',created_at:'createdAt',public_attendance_url:'publicAttendanceUrl',monthly_price:'monthlyPrice',yearly_price:'yearlyPrice',current_tenant_id:'currentTenantId',hourly_overage_rate:'hourlyOverageRate',room_id:'roomId',customer_id:'customerId',start_time:'startTime',end_time:'endTime',duration_hours:'durationHours',created_by:'createdBy',is_overage:'isOverage',overage_fee:'overageFee',attendee_id:'attendeeId',booking_id:'bookingId',check_in_time:'checkInTime',check_out_time:'checkOutTime',duration_minutes:'durationMinutes',contract_number:'contractNumber',office_id:'officeId',rental_type:'rentalType',end_date:'endDate',rent_price:'rentPrice',auto_renew:'autoRenew',last_wa_reminder_sent_at:'lastWaReminderSentAt',invoice_number:'invoiceNumber',contract_id:'contractId',issue_date:'issueDate',due_date:'dueDate',total_discount_type:'totalDiscountType',total_discount_value:'totalDiscountValue',total_discount_amount:'totalDiscountAmount',total_tax_amount:'totalTaxAmount',total_amount:'totalAmount',total_paid:'totalPaid',remaining_amount:'remainingAmount',auto_notification:'autoNotification',last_wa_sent_at:'lastWaSentAt',invoice_id:'invoiceId',item_type:'itemType',discount_type:'discountType',discount_value:'discountValue',discount_amount:'discountAmount',tax_name:'taxName',tax_percent:'taxPercent',tax_amount:'taxAmount',receipt_number:'receiptNumber',payment_date:'paymentDate',payment_method:'paymentMethod',recorded_by:'recordedBy',message_type:'messageType',sent_at:'sentAt',kirimdev_api_key:'kirimdevApiKey',kirimdev_phone_number_id:'kirimdevPhoneNumberId',company_address:'companyAddress',company_phone:'companyPhone',bank_account_info:'bankAccountInfo',meeting_room_monthly_free_hours:'meetingRoomMonthlyFreeHours',meeting_room_overage_rate_per_hour:'meetingRoomOverageRatePerHour',auto_notification_enabled:'autoNotificationEnabled',reminder_intervals:'reminderIntervals',ownership_type:'ownershipType',property_partner_id:'propertyPartnerId',property_share_percent:'propertySharePercent',open_on_national_holidays:'openOnNationalHolidays',user_id:'userId',onboarding_status:'onboardingStatus',profile_completed_at:'profileCompletedAt',partner_type:'partnerType',contact_name:'contactName',tax_id:'taxId',commission_default_model:'commissionDefaultModel',commission_default_rate:'commissionDefaultRate',is_active:'isActive',category_id:'categoryId',variant_name:'variantName',sale_price:'salePrice',product_id:'productId',vendor_id:'vendorId',vendor_price_id:'vendorPriceId',component_name:'componentName',service_variant:'serviceVariant',unit_cost:'unitCost',valid_from:'validFrom',valid_until:'validUntil',is_preferred:'isPreferred',estimated_hpp:'estimatedHpp',actual_hpp:'actualHpp',gross_profit:'grossProfit',margin_percent:'marginPercent',reseller_id:'resellerId',commission_model:'commissionModel',commission_rate:'commissionRate',boffice_net_price:'bofficeNetPrice',reseller_commission:'resellerCommission',transaction_date:'transactionDate',source_type:'sourceType',source_id:'sourceId',partner_id:'partnerId',proof_url:'proofUrl',proof_key:'proofKey',approved_by:'approvedBy',approved_at:'approvedAt',booker_name:'bookerName',booker_phone:'bookerPhone',day_of_week:'dayOfWeek',is_open:'isOpen',open_time:'openTime',close_time:'closeTime',holiday_date:'holidayDate',full_name:'fullName',accepted_at:'acceptedAt',expires_at:'expiresAt'
 };
 const reverseKeys = Object.fromEntries(Object.entries(keys).map(([a,b]) => [b,a]));
 function fromRow<T>(row: Record<string, any>): T { return Object.fromEntries(Object.entries(row).map(([k,v]) => [keys[k] || k,v])) as T; }
@@ -55,9 +55,44 @@ export async function addBranch(branch:Omit<Branch,'id'|'createdAt'>){
       throw error;
     }
   }
+  const existingHours=await getBranchWorkingHours(created.id);
+  if(!existingHours.length)await saveBranchWorkingHours(created.id,[0,1,2,3,4,5,6].map(dayOfWeek=>({dayOfWeek,isOpen:dayOfWeek>=1&&dayOfWeek<=6,openTime:'08:00',closeTime:dayOfWeek===6?'13:00':'17:00'})),false);
   return created;
 }
 export async function updateBranch(id:string,updates:Partial<Branch>){ return updateOne<Branch>('branches',id,updates); }
+
+export async function getBranchWorkingHours(branchId:string):Promise<BranchWorkingHour[]> {
+  const {data,error}=await getInsforge().database.from('branch_working_hours').select().eq('branch_id',branchId).order('day_of_week').limit(7);
+  assertOk(error);
+  return ((data||[]) as any[]).map(fromRow<BranchWorkingHour>).map(item=>({...item,openTime:item.openTime?String(item.openTime).slice(0,5):undefined,closeTime:item.closeTime?String(item.closeTime).slice(0,5):undefined}));
+}
+export async function saveBranchWorkingHours(branchId:string,hours:Array<Pick<BranchWorkingHour,'dayOfWeek'|'isOpen'|'openTime'|'closeTime'>>,openOnNationalHolidays:boolean){
+  await updateBranch(branchId,{openOnNationalHolidays});
+  for(const item of hours){
+    const value={isOpen:Boolean(item.isOpen),openTime:item.isOpen?item.openTime:null,closeTime:item.isOpen?item.closeTime:null,updatedAt:new Date().toISOString()};
+    const {data:existing,error}=await getInsforge().database.from('branch_working_hours').select('id').eq('branch_id',branchId).eq('day_of_week',item.dayOfWeek).maybeSingle();assertOk(error);
+    if(existing)await updateOne<BranchWorkingHour>('branch_working_hours',(existing as any).id,value);
+    else await insertOne<BranchWorkingHour>('branch_working_hours',{id:`hours_${branchId}_${item.dayOfWeek}`,branchId,dayOfWeek:item.dayOfWeek,...value});
+  }
+  return getBranchWorkingHours(branchId);
+}
+export async function getBranchDayAvailability(branchId:string,date:string):Promise<BranchDayAvailability>{
+  const branch=(await getBranches()).find(item=>item.id===branchId);
+  if(!branch)throw new Error('Cabang tidak ditemukan.');
+  const [{data:holiday,error:holidayError},hours]=await Promise.all([
+    getInsforge().database.from('national_holidays').select('name').eq('holiday_date',date).maybeSingle(),
+    getBranchWorkingHours(branchId),
+  ]);
+  assertOk(holidayError);
+  if(holiday&&!branch.openOnNationalHolidays)return {isOpen:false,reason:'national_holiday',holidayName:(holiday as any).name};
+  const dayOfWeek=new Date(`${date}T12:00:00Z`).getUTCDay();
+  const schedule=hours.find(item=>item.dayOfWeek===dayOfWeek);
+  if(!schedule?.isOpen)return {isOpen:false,reason:'closed_day'};
+  return {isOpen:true,openTime:schedule.openTime,closeTime:schedule.closeTime,holidayName:holiday?(holiday as any).name:undefined};
+}
+
+export async function getStaffUsers(){ const {data,error}=await getInsforge().database.from('user_roles').select().in('role',['super_admin','branch_admin','finance','sales']).order('created_at',{ascending:false}).limit(MAX_ROWS);assertOk(error);return ((data||[]) as any[]).map(fromRow<any>); }
+export async function updateStaffUser(userId:string,updates:Record<string,any>){ const {data,error}=await getInsforge().database.from('user_roles').update(toRow({...updates,updatedAt:new Date().toISOString()})).eq('user_id',userId).select().maybeSingle();assertOk(error);return data?fromRow<any>(data as any):null; }
 
 export async function getCustomers(branchId?:string){ return list<Customer>('customers',branchId); }
 export async function searchActiveTenants(query:string){
@@ -102,7 +137,7 @@ export async function getInvitationByHash(tokenHash:string){ const {data,error}=
 export async function acceptInvitation(invitation:any,password:string){
   const {data,error}=await getInsforge().auth.signUp({email:invitation.email,password,name:invitation.fullName});assertOk(error);
   const userId=data?.user?.id;if(!userId)throw new Error('Akun tidak berhasil dibuat.');
-  const roleResult=await getInsforge().database.from('user_roles').insert([{user_id:userId,email:invitation.email,full_name:invitation.fullName,role:invitation.role,customer_id:invitation.customerId||null,partner_id:invitation.partnerId||null,is_active:true}]);assertOk(roleResult.error);
+  const roleResult=await getInsforge().database.from('user_roles').insert([{user_id:userId,email:invitation.email,full_name:invitation.fullName,role:invitation.role,branch_id:invitation.branchId||null,customer_id:invitation.customerId||null,partner_id:invitation.partnerId||null,is_active:true}]);assertOk(roleResult.error);
   if(invitation.customerId)await updateCustomer(invitation.customerId,{userId,onboardingStatus:'active'});
   if(invitation.partnerId)await updatePartner(invitation.partnerId,{userId});
   await updateOne<any>('user_invitations',invitation.id,{acceptedAt:new Date().toISOString()});

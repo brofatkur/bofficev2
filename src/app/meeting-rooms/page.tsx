@@ -25,7 +25,9 @@ export default function MeetingRoomsPage() {
   const [calendarDate, setCalendarDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' }));
   const [calendarRoomId, setCalendarRoomId] = useState('');
   const [calendarBookings, setCalendarBookings] = useState<any[]>([]);
+  const [calendarSchedule, setCalendarSchedule] = useState<any>(null);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
+  const [formSchedule, setFormSchedule] = useState<any>(null);
 
   // Booking Form Modal State
   const [showModal, setShowModal] = useState(false);
@@ -67,6 +69,13 @@ export default function MeetingRoomsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(()=>{
+    if(!showModal||!form.roomId||!form.date)return;
+    const room=rooms.find(item=>item.id===form.roomId);if(!room)return;
+    fetch(`/api/bookings/availability?branchId=${encodeURIComponent(room.branchId)}&roomId=${encodeURIComponent(room.id)}&date=${encodeURIComponent(form.date)}`,{cache:'no-store'}).then(r=>r.json()).then(result=>setFormSchedule(result.success?result.data.schedule:null)).catch(()=>setFormSchedule(null));
+  },[showModal,form.roomId,form.date,rooms]);
+  const latestStart=formSchedule?.closeTime?(()=>{const [h,m]=String(formSchedule.closeTime).split(':').map(Number),minutes=h*60+m-30;return `${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`})():'19:30';
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,13 +172,13 @@ export default function MeetingRoomsPage() {
   const selectedCalendarBranch = branches.find((branch) => branch.id === selectedCalendarRoom?.branchId);
   useEffect(() => {
     const room = rooms.find((item) => item.id === calendarRoomId);
-    if (!room || !calendarDate) { setCalendarBookings([]); return; }
+    if (!room || !calendarDate) { setCalendarBookings([]); setCalendarSchedule(null); return; }
     const controller = new AbortController();
     setLoadingCalendar(true);
     fetch(`/api/bookings/availability?branchId=${encodeURIComponent(room.branchId)}&roomId=${encodeURIComponent(room.id)}&date=${encodeURIComponent(calendarDate)}`, { cache: 'no-store', signal: controller.signal })
       .then((response) => response.json())
-      .then((result) => setCalendarBookings(result.success ? result.data.bookings : []))
-      .catch((error) => { if (error.name !== 'AbortError') setCalendarBookings([]); })
+      .then((result) => { setCalendarBookings(result.success ? result.data.bookings : []); setCalendarSchedule(result.success ? result.data.schedule : null); })
+      .catch((error) => { if (error.name !== 'AbortError') { setCalendarBookings([]); setCalendarSchedule(null); } })
       .finally(() => { if (!controller.signal.aborted) setLoadingCalendar(false); });
     return () => controller.abort();
   }, [rooms, calendarRoomId, calendarDate]);
@@ -183,8 +192,12 @@ export default function MeetingRoomsPage() {
       return { value: date.toLocaleDateString('en-CA'), weekday: date.toLocaleDateString('id-ID', { weekday: 'short' }), day: date.getDate(), month: date.toLocaleDateString('id-ID', { month: 'short' }) };
     });
   }, [calendarDate]);
-  const calendarSlots = useMemo(() => Array.from({ length: 24 }, (_, index) => {
-    const startMinutes = 8 * 60 + index * 30;
+  const calendarSlots = useMemo(() => {
+    if(!calendarSchedule?.isOpen||!calendarSchedule.openTime||!calendarSchedule.closeTime)return [];
+    const [openHour,openMinute]=calendarSchedule.openTime.split(':').map(Number),[closeHour,closeMinute]=calendarSchedule.closeTime.split(':').map(Number);
+    const openMinutes=openHour*60+openMinute,closeMinutes=closeHour*60+closeMinute;
+    return Array.from({ length: Math.max(0,Math.ceil((closeMinutes-openMinutes)/30)) }, (_, index) => {
+    const startMinutes = openMinutes + index * 30;
     const endMinutes = startMinutes + 30;
     const startTime = `${String(Math.floor(startMinutes / 60)).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
     const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
@@ -193,7 +206,7 @@ export default function MeetingRoomsPage() {
     const today = now.toLocaleDateString('en-CA');
     const passed = calendarDate < today || (calendarDate === today && startMinutes <= now.getHours() * 60 + now.getMinutes());
     return { startTime, endTime, booking, passed };
-  }), [calendarBookings, calendarDate]);
+  })}, [calendarBookings, calendarDate, calendarSchedule]);
 
   const moveCalendarWeek = (days: number) => {
     const date = new Date(`${calendarDate}T00:00:00`); date.setDate(date.getDate() + days);
@@ -279,10 +292,11 @@ export default function MeetingRoomsPage() {
           </div>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-sm font-extrabold text-slate-900">{selectedCalendarRoom?.name || 'Meeting Room'} · {selectedCalendarBranch?.name || 'Cabang'}</p><p className="text-xs text-slate-500">{new Date(`${calendarDate}T00:00:00`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
+            <div><p className="text-sm font-extrabold text-slate-900">{selectedCalendarRoom?.name || 'Meeting Room'} · {selectedCalendarBranch?.name || 'Cabang'}</p><p className="text-xs text-slate-500">{new Date(`${calendarDate}T00:00:00`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}{calendarSchedule?.isOpen?` · ${calendarSchedule.openTime}–${calendarSchedule.closeTime} WITA`:''}</p></div>
             <div className="flex flex-wrap gap-2 text-[11px] font-bold">{loadingCalendar && <span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 ring-1 ring-blue-200">Memuat jadwal…</span>}<span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-200">{calendarSlots.filter((slot) => !slot.booking && !slot.passed).length} slot tersedia</span><span className="rounded-full bg-rose-50 px-3 py-1.5 text-rose-700 ring-1 ring-rose-200">{calendarSlots.filter((slot) => slot.booking).length} slot terisi</span></div>
           </div>
 
+          {!loadingCalendar&&!calendarSchedule?.isOpen&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">{calendarSchedule?.reason==='national_holiday'?`Tutup karena libur nasional${calendarSchedule.holidayName?`: ${calendarSchedule.holidayName}`:''}.`:'Cabang tutup pada hari ini.'}</div>}
           <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {calendarSlots.map((slot) => {
               const detailedBooking = slot.booking ? bookings.find((item) => item.id === slot.booking.id) : null;
@@ -497,8 +511,8 @@ export default function MeetingRoomsPage() {
                   <input
                     type="time"
                     required
-                    min="08:00"
-                    max="19:30"
+                    min={formSchedule?.openTime||'08:00'}
+                    max={latestStart}
                     step={1800}
                     value={form.startTime}
                     onChange={(e) => setForm({ ...form, startTime: e.target.value })}
@@ -510,8 +524,8 @@ export default function MeetingRoomsPage() {
                   <input
                     type="time"
                     required
-                    min="08:30"
-                    max="20:00"
+                    min={formSchedule?.openTime||'08:30'}
+                    max={formSchedule?.closeTime||'20:00'}
                     step={1800}
                     value={form.endTime}
                     onChange={(e) => setForm({ ...form, endTime: e.target.value })}
@@ -519,6 +533,8 @@ export default function MeetingRoomsPage() {
                   />
                 </div>
               </div>
+
+              {formSchedule&&!formSchedule.isOpen&&<div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-[11px] font-bold text-rose-700">Cabang tutup pada tanggal ini{formSchedule.reason==='national_holiday'&&formSchedule.holidayName?` karena ${formSchedule.holidayName}`:''}. Pilih tanggal lain.</div>}
 
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 leading-relaxed flex items-start gap-2">
                 <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -537,7 +553,8 @@ export default function MeetingRoomsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-md shadow-emerald-600/20"
+                  disabled={formSchedule&&!formSchedule.isOpen}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 text-white rounded-xl font-semibold shadow-md shadow-emerald-600/20"
                 >
                   Simpan Reservasi
                 </button>

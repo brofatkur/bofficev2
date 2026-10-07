@@ -20,6 +20,24 @@ export interface Branch {
   ownershipType?: 'independent' | 'cooperation';
   propertyPartnerId?: string;
   propertySharePercent?: number;
+  openOnNationalHolidays?: boolean;
+}
+
+export interface BranchWorkingHour {
+  id: string;
+  branchId: string;
+  dayOfWeek: number;
+  isOpen: boolean;
+  openTime?: string;
+  closeTime?: string;
+}
+
+export interface BranchDayAvailability {
+  isOpen: boolean;
+  openTime?: string;
+  closeTime?: string;
+  reason?: 'closed_day' | 'national_holiday';
+  holidayName?: string;
 }
 
 // Modul 2: Profil Data Penyewa (Tenant Profile)
