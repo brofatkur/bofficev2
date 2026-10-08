@@ -28,7 +28,7 @@ export async function PUT(req:NextRequest){
       if(!Number.isInteger(item.dayOfWeek)||item.dayOfWeek<0||item.dayOfWeek>6)return NextResponse.json({success:false,error:'Hari kerja tidak valid.'},{status:400});
       if(item.isOpen&&(!/^\d{2}:\d{2}$/.test(item.openTime)||!/^\d{2}:\d{2}$/.test(item.closeTime)||item.openTime>=item.closeTime))return NextResponse.json({success:false,error:'Jam buka harus lebih awal dari jam tutup.'},{status:400});
     }
-    const hours=await saveBranchWorkingHours(body.branchId,body.hours,Boolean(body.openOnNationalHolidays));
+    const hours=await saveBranchWorkingHours(body.branchId,body.hours,Boolean(body.openOnNationalHolidays),body.closeOnNyepi!==false);
     return NextResponse.json({success:true,data:hours});
   }catch(error){return NextResponse.json({success:false,error:readableError(error)},{status:500});}
 }

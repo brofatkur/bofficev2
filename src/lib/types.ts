@@ -21,6 +21,7 @@ export interface Branch {
   propertyPartnerId?: string;
   propertySharePercent?: number;
   openOnNationalHolidays?: boolean;
+  closeOnNyepi?: boolean;
 }
 
 export interface BranchWorkingHour {
