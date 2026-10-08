@@ -149,9 +149,14 @@ export async function sendAppEmail(to:string,subject:string,html:string){ const 
 export async function getMeetingRooms(branchId?:string):Promise<MeetingRoom[]>{ let q:any=getInsforge().database.from('meeting_rooms').select().limit(MAX_ROWS); if(branchId&&branchId!=='all')q=q.eq('branch_id',branchId); const {data,error}=await q; assertOk(error); return ((data||[]) as any[]).map(fromRow<MeetingRoom>); }
 export async function getBookings(branchId?:string){ return list<MeetingBooking>('bookings',branchId); }
 export async function getBookingAvailability(roomId:string,date:string){
-  const {data,error}=await getInsforge().database.from('bookings').select('id,start_time,end_time,status').eq('room_id',roomId).eq('date',date).neq('status','cancelled').order('start_time').limit(100);
+  // PostgreSQL DATE values are returned by InsForge as ISO timestamps. A bare
+  // YYYY-MM-DD equality filter can miss those rows, so normalize after reading
+  // the selected room's active reservations.
+  const {data,error}=await getInsforge().database.from('bookings').select('id,date,start_time,end_time,status').eq('room_id',roomId).neq('status','cancelled').order('start_time').limit(MAX_ROWS);
   assertOk(error);
-  return ((data||[]) as any[]).map(row=>({id:row.id,startTime:String(row.start_time).slice(0,5),endTime:String(row.end_time).slice(0,5),status:row.status}));
+  return ((data||[]) as any[])
+    .filter(row=>String(row.date).slice(0,10)===date)
+    .map(row=>({id:row.id,startTime:String(row.start_time).slice(0,5),endTime:String(row.end_time).slice(0,5),status:row.status}));
 }
 export async function checkBookingConflict(roomId:string,date:string,startTime:string,endTime:string,excludeId?:string){ let q:any=getInsforge().database.from('bookings').select('id,start_time,end_time').eq('room_id',roomId).eq('date',date).neq('status','cancelled').limit(MAX_ROWS); if(excludeId)q=q.neq('id',excludeId); const {data,error}=await q; assertOk(error); return ((data||[]) as any[]).some(b=>startTime<String(b.end_time).slice(0,5)&&endTime>String(b.start_time).slice(0,5)); }
 export async function addBooking(value:Omit<MeetingBooking,'id'|'createdAt'|'status'>):Promise<{success:boolean;booking?:MeetingBooking;error?:string}>{

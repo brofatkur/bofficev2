@@ -28,6 +28,7 @@ export default function MeetingRoomsPage() {
   const [calendarSchedule, setCalendarSchedule] = useState<any>(null);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [formSchedule, setFormSchedule] = useState<any>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Booking Form Modal State
   const [showModal, setShowModal] = useState(false);
@@ -68,6 +69,15 @@ export default function MeetingRoomsPage() {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => { void fetchData(); setRefreshKey((value) => value + 1); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    const timer = window.setInterval(refresh, 15000);
+    return () => { window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', onVisibility); window.clearInterval(timer); };
   }, []);
 
   useEffect(()=>{
@@ -182,7 +192,7 @@ export default function MeetingRoomsPage() {
       .catch((error) => { if (error.name !== 'AbortError') { setCalendarBookings([]); setCalendarSchedule(null); } })
       .finally(() => { if (!controller.signal.aborted) setLoadingCalendar(false); });
     return () => controller.abort();
-  }, [rooms, calendarRoomId, calendarDate]);
+  }, [rooms, calendarRoomId, calendarDate, refreshKey]);
   const calendarDays = useMemo(() => {
     const selected = new Date(`${calendarDate}T00:00:00`);
     const monday = new Date(selected);

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBookings, addBooking, cancelBooking, getMeetingRooms, getBranches, getCustomers, getSettings, getBranchDayAvailability } from '@/lib/data-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const branchId = searchParams.get('branchId') || undefined;
   const bookings = await getBookings(branchId);
-  return NextResponse.json({ success: true, data: bookings });
+  return NextResponse.json({ success: true, data: bookings }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: NextRequest) {

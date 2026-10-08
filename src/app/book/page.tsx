@@ -65,7 +65,7 @@ function BookingFormInner() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [tenantQuery, bookingType, selectedTenant]);
 
-  const loadAvailability = useCallback(async () => {
+  const loadAvailability = useCallback(async (resetSelection = true) => {
     if (!form.branchId || !form.date) return;
     setLoadingSchedule(true); setErrorMsg(null);
     try {
@@ -73,12 +73,22 @@ function BookingFormInner() {
       const result = await response.json();
       if (!result.success) throw new Error(result.error || 'Jadwal gagal dimuat.');
       setAvailability(result.data);
-      setForm(current => ({ ...current, startTime: '', endTime: '' }));
+      if (resetSelection) setForm(current => ({ ...current, startTime: '', endTime: '' }));
     } catch (error: any) { setAvailability(null); setErrorMsg(error.message); }
     finally { setLoadingSchedule(false); }
   }, [form.branchId, form.date]);
 
   useEffect(() => { loadAvailability(); }, [loadAvailability]);
+
+  useEffect(() => {
+    if (!form.branchId || !form.date || confirmedBooking) return;
+    const refresh = () => { void loadAvailability(false); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    const timer = window.setInterval(refresh, 15000);
+    return () => { window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', onVisibility); window.clearInterval(timer); };
+  }, [form.branchId, form.date, confirmedBooking, loadAvailability]);
 
   const slots = useMemo(() => {
     if(!availability?.schedule.isOpen||!availability.schedule.openTime||!availability.schedule.closeTime)return [];
@@ -108,6 +118,7 @@ function BookingFormInner() {
       }) });
       const result = await response.json();
       if (!result.success) { await loadAvailability(); throw new Error(result.error || 'Booking gagal dibuat.'); }
+      await loadAvailability(false);
       setConfirmedBooking({ booking: result.data, branch: branches.find(branch => branch.id === form.branchId), organization, bookerName: form.name, bookerPhone: form.phone });
     } catch (error: any) { setErrorMsg(error.message || 'Terjadi kesalahan sistem.'); }
     finally { setSubmitting(false); }
@@ -138,7 +149,7 @@ function BookingFormInner() {
           </section>
 
           <section>
-            <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="flex items-center gap-2 font-extrabold"><Clock className="h-5 w-5 text-blue-600" />Pilih jam mulai</h2><p className="mt-1 text-xs text-slate-500">{availability?.schedule.isOpen?`Operasional ${availability.schedule.openTime}–${availability.schedule.closeTime} WITA, interval 30 menit.`:'Cabang tidak beroperasi pada tanggal ini.'}</p></div><button type="button" onClick={loadAvailability} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600"><RefreshCw className={`h-3.5 w-3.5 ${loadingSchedule ? 'animate-spin' : ''}`} />Perbarui jadwal</button></div>
+            <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="flex items-center gap-2 font-extrabold"><Clock className="h-5 w-5 text-blue-600" />Pilih jam mulai</h2><p className="mt-1 text-xs text-slate-500">{availability?.schedule.isOpen?`Operasional ${availability.schedule.openTime}–${availability.schedule.closeTime} WITA, interval 30 menit.`:'Cabang tidak beroperasi pada tanggal ini.'}</p></div><button type="button" onClick={() => loadAvailability()} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600"><RefreshCw className={`h-3.5 w-3.5 ${loadingSchedule ? 'animate-spin' : ''}`} />Perbarui jadwal</button></div>
             <div className="mt-3 flex flex-wrap gap-2"><span className="py-2 text-xs font-semibold text-slate-500">Durasi:</span>{DURATIONS.map(minutes => <button type="button" key={minutes} onClick={() => { setDuration(minutes); setForm(current => ({ ...current, startTime: '', endTime: '' })); }} className={`rounded-lg border px-3 py-2 text-xs font-bold ${duration === minutes ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{minutes < 60 ? '30 menit' : `${minutes / 60} jam`}</button>)}</div>
             {availability?.schedule.isOpen?<div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">{slots.map(slot => <button type="button" key={slot.time} disabled={!slot.available || loadingSchedule} onClick={() => setForm(current => ({ ...current, startTime: slot.time, endTime: slot.endTime }))} className={`rounded-xl border px-2 py-3 text-center transition ${form.startTime === slot.time ? 'border-blue-600 bg-blue-600 text-white shadow-md' : slot.available ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-500' : slot.conflicting ? 'cursor-not-allowed border-rose-200 bg-rose-50 text-rose-500 line-through' : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'}`}><span className="block text-sm font-black">{slot.time}</span><span className="mt-0.5 block text-[10px] font-semibold">{slot.available ? `s/d ${slot.endTime}` : slot.conflicting ? 'Terbooking' : 'Tidak tersedia'}</span></button>)}</div>:!loadingSchedule&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">{availability?.schedule.reason==='national_holiday'?`Tutup karena libur nasional${availability.schedule.holidayName?`: ${availability.schedule.holidayName}`:''}.`:'Cabang tutup pada hari ini.'}</div>}
             {availability?.schedule.isOpen&&(availability.bookings.length ? <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 p-3"><p className="text-xs font-bold text-rose-700">Jadwal yang sudah terbooking:</p><div className="mt-2 flex flex-wrap gap-2">{availability.bookings.map(booking => <span key={booking.id} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-rose-600 ring-1 ring-rose-200">{booking.startTime}–{booking.endTime}</span>)}</div></div> : !loadingSchedule && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">Belum ada booking pada tanggal ini. Semua slot operasional masih tersedia.</p>)}

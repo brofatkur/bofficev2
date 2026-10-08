@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const room = rooms.find((item) => !roomId || item.id === roomId) || rooms[0];
     if (!room) return NextResponse.json({ success: false, error: 'Meeting room tidak ditemukan di cabang ini.' }, { status: 404 });
     const [bookings,schedule] = await Promise.all([getBookingAvailability(room.id, date),getBranchDayAvailability(branchId,date)]);
-    return NextResponse.json({ success: true, data: { room: { id: room.id, name: room.name }, bookings, schedule } });
+    return NextResponse.json({ success: true, data: { room: { id: room.id, name: room.name }, bookings, schedule } }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return NextResponse.json({ success: false, error: readableError(error) }, { status: 500 });
   }
