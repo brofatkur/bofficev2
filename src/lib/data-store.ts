@@ -3,12 +3,18 @@ import { createAdminClient } from '@insforge/sdk';
 import { AppSettings, Branch, BranchDayAvailability, BranchWorkingHour, Contract, Customer, FinancialTransaction, Invoice, InvoiceItem, InvoicePayment, Lead, MeetingBooking, MeetingRoom, OfficeSpace, Partner, Product, ProductCategory, ProductVendorPrice, TotalTaxItem, WhatsAppLog } from './types';
 
 let adminClient: ReturnType<typeof createAdminClient> | null = null;
+const noStoreFetch: typeof fetch = (input, init) => {
+  const headers = new Headers(init?.headers);
+  headers.set('Cache-Control', 'no-cache, no-store, max-age=0');
+  headers.set('Pragma', 'no-cache');
+  return fetch(input, { ...init, headers, cache: 'no-store' });
+};
 function getInsforge() {
   if (adminClient) return adminClient;
   const baseUrl = process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL;
   const apiKey = process.env.INSFORGE_API_KEY;
   if (!baseUrl || !apiKey) throw new Error('INSFORGE_URL dan INSFORGE_API_KEY wajib dikonfigurasi pada environment server.');
-  adminClient = createAdminClient({ baseUrl, apiKey });
+  adminClient = createAdminClient({ baseUrl, apiKey, fetch: noStoreFetch });
   return adminClient;
 }
 const MAX_ROWS = 1000;
@@ -158,7 +164,7 @@ export async function getBookingAvailability(roomId:string,date:string){
     .filter(row=>String(row.date).slice(0,10)===date)
     .map(row=>({id:row.id,startTime:String(row.start_time).slice(0,5),endTime:String(row.end_time).slice(0,5),status:row.status}));
 }
-export async function checkBookingConflict(roomId:string,date:string,startTime:string,endTime:string,excludeId?:string){ let q:any=getInsforge().database.from('bookings').select('id,start_time,end_time').eq('room_id',roomId).eq('date',date).neq('status','cancelled').limit(MAX_ROWS); if(excludeId)q=q.neq('id',excludeId); const {data,error}=await q; assertOk(error); return ((data||[]) as any[]).some(b=>startTime<String(b.end_time).slice(0,5)&&endTime>String(b.start_time).slice(0,5)); }
+export async function checkBookingConflict(roomId:string,date:string,startTime:string,endTime:string,excludeId?:string){ const bookings=await getBookingAvailability(roomId,date); return bookings.some(b=>b.id!==excludeId&&startTime<b.endTime&&endTime>b.startTime); }
 export async function addBooking(value:Omit<MeetingBooking,'id'|'createdAt'|'status'>):Promise<{success:boolean;booking?:MeetingBooking;error?:string}>{
   if(await checkBookingConflict(value.roomId,value.date,value.startTime,value.endTime))return {success:false,error:'Jadwal tersebut baru saja terisi. Silakan pilih slot lain yang masih tersedia.'};
   try {
